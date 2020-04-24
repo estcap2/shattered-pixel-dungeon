@@ -27,6 +27,7 @@ import com.shatteredpixel.shatteredpixeldungeon.ShatteredPixelDungeon;
 import com.shatteredpixel.shatteredpixeldungeon.messages.Messages;
 import com.shatteredpixel.shatteredpixeldungeon.scenes.GameScene;
 import com.shatteredpixel.shatteredpixeldungeon.scenes.InterlevelScene;
+import com.shatteredpixel.shatteredpixeldungeon.scenes.LoadSaveScene;
 import com.shatteredpixel.shatteredpixeldungeon.scenes.RankingsScene;
 import com.shatteredpixel.shatteredpixeldungeon.scenes.TitleScene;
 import com.shatteredpixel.shatteredpixeldungeon.ui.RedButton;
@@ -52,6 +53,19 @@ public class WndGame extends Window {
 			protected void onClick() {
 				hide();
 				GameScene.show(new WndSettings());
+			}
+		});
+
+		addButton( new RedButton( Messages.get(this, "loadsave") ) {
+			@Override
+			protected void onClick() {
+				hide();
+				try{
+					Dungeon.saveAll();
+				} catch (Exception e){
+					System.out.println("ERROR");
+				}
+				ShatteredPixelDungeon.switchNoFade( LoadSaveScene.class );
 			}
 		});
 
