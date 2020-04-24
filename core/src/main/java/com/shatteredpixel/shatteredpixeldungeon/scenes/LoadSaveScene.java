@@ -26,6 +26,7 @@ import com.shatteredpixel.shatteredpixeldungeon.Chrome;
 import com.shatteredpixel.shatteredpixeldungeon.Dungeon;
 import com.shatteredpixel.shatteredpixeldungeon.GamesInProgress;
 import com.shatteredpixel.shatteredpixeldungeon.ShatteredPixelDungeon;
+import com.shatteredpixel.shatteredpixeldungeon.actors.Actor;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.HeroSubClass;
 import com.shatteredpixel.shatteredpixeldungeon.journal.Journal;
 import com.shatteredpixel.shatteredpixeldungeon.messages.Messages;
@@ -44,14 +45,19 @@ import com.watabou.noosa.Image;
 import com.watabou.noosa.NinePatch;
 import com.watabou.noosa.ui.Button;
 
+import java.io.IOException;
 import java.util.ArrayList;
 
 public class LoadSaveScene extends PixelScene {
-	
+
+	private static final String GAME_FOLDER = "savegame%d";
+	private static final String GAME_FILE	= "game.dat";
+	private static final String DEPTH_FILE	= "depth%d.dat";
+
 	private static final int SLOT_WIDTH = 120;
 	private static final int SLOT_HEIGHT = 30;
-	private static final int WIDTH			= 120;
-	private static final int BTN_HEIGHT		= 18;
+	private int BTN_WIDTH = 50;
+	private int BTN_HEIGHT = 15;
 	@Override
 	public void create() {
 		super.create();
@@ -74,50 +80,55 @@ public class LoadSaveScene extends PixelScene {
 		align(title);
 		add(title);
 
-		/*
-		RedButton btnTest = new RedButton( Messages.get(this, "exit") ) {
+		//TODO: multiple slots, details of savegames (using start screen style)
+
+		RedButton btnSave1 = new RedButton( Messages.get(this, "save") ) {
 			@Override
 			protected void onClick() {
-				System.out.println("TEST TEST");
+				//System.out.println("saveA");
+				try{
+					saveAllSavegame(1);
+				}catch (Exception e){
+					ShatteredPixelDungeon.reportException( e );
+				}
 			}
 		};
-		btnTest.setSize( WIDTH, BTN_HEIGHT );
-		add( btnTest );*/
-		
-		/*ArrayList<GamesInProgress.Info> games = GamesInProgress.checkAll();
 
-		int slotGap = landscape() ? 5 : 10;
-		int slotCount = Math.min(GamesInProgress.MAX_SLOTS, games.size()+1);
-		int slotsHeight = slotCount*SLOT_HEIGHT + (slotCount-1)* slotGap;
-		
-		float yPos = (h - slotsHeight)/2f;
-		if (landscape()) yPos += 8;
-		
-		for (GamesInProgress.Info game : games) {
-			SaveSlotButton existingGame = new SaveSlotButton();
-			existingGame.set(game.slot);
-			existingGame.setRect((w - SLOT_WIDTH) / 2f, yPos, SLOT_WIDTH, SLOT_HEIGHT);
-			yPos += SLOT_HEIGHT + slotGap;
-			align(existingGame);
-			add(existingGame);
-			
-		}
-		
-		if (games.size() < GamesInProgress.MAX_SLOTS){
-			SaveSlotButton newGame = new SaveSlotButton();
-			newGame.set(GamesInProgress.firstEmpty());
-			newGame.setRect((w - SLOT_WIDTH) / 2f, yPos, SLOT_WIDTH, SLOT_HEIGHT);
-			yPos += SLOT_HEIGHT + slotGap;
-			align(newGame);
-			add(newGame);
-		}
+		RedButton btnLoad1 = new RedButton( Messages.get(this, "load") ) {
+			@Override
+			protected void onClick() {
+				try {
+					loadSavegame(1);
+				} catch (IOException e) {
+					ShatteredPixelDungeon.reportException(e);
+				}
+			}
+		};
 
-		GamesInProgress.curSlot = 0;
-		*/
+		btnSave1.setRect(10, 100, BTN_WIDTH, BTN_HEIGHT);
+		btnLoad1.setRect(80, 100, BTN_WIDTH, BTN_HEIGHT);
+
+		add(btnLoad1);
+		add(btnSave1);
+
 		fadeIn();
 		
 	}
-	
+
+	private void saveAllSavegame(int slot) throws IOException {
+		slot = slot + 100;
+		if (Dungeon.hero != null && Dungeon.hero.isAlive()) {
+			Actor.fixTime();
+			Dungeon.saveGame( slot );
+			Dungeon.saveLevel( slot );
+		}
+	}
+
+	private void loadSavegame (int slot) throws IOException {
+		slot = slot + 100;
+		Dungeon.loadGame(slot, true);
+	}
+
 	@Override
 	protected void onBackPressed() {
 		InterlevelScene.mode = InterlevelScene.Mode.CONTINUE;
