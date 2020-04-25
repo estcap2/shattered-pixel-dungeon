@@ -26,12 +26,16 @@ import com.shatteredpixel.shatteredpixeldungeon.Chrome;
 import com.shatteredpixel.shatteredpixeldungeon.Dungeon;
 import com.shatteredpixel.shatteredpixeldungeon.GamesInProgress;
 import com.shatteredpixel.shatteredpixeldungeon.ShatteredPixelDungeon;
+import com.shatteredpixel.shatteredpixeldungeon.Statistics;
 import com.shatteredpixel.shatteredpixeldungeon.actors.Actor;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.HeroSubClass;
+import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Mob;
 import com.shatteredpixel.shatteredpixeldungeon.journal.Journal;
+import com.shatteredpixel.shatteredpixeldungeon.levels.Level;
 import com.shatteredpixel.shatteredpixeldungeon.messages.Messages;
 import com.shatteredpixel.shatteredpixeldungeon.ui.Archs;
 import com.shatteredpixel.shatteredpixeldungeon.ui.ExitButton;
+import com.shatteredpixel.shatteredpixeldungeon.ui.GameLog;
 import com.shatteredpixel.shatteredpixeldungeon.ui.Icons;
 import com.shatteredpixel.shatteredpixeldungeon.ui.RedButton;
 import com.shatteredpixel.shatteredpixeldungeon.ui.RenderedTextBlock;
@@ -56,8 +60,8 @@ public class LoadSaveScene extends PixelScene {
 
 	private static final int SLOT_WIDTH = 120;
 	private static final int SLOT_HEIGHT = 30;
-	private int BTN_WIDTH = 50;
-	private int BTN_HEIGHT = 15;
+	private static int BTN_WIDTH = 50;
+	private static int BTN_HEIGHT = 15;
 	@Override
 	public void create() {
 		super.create();
@@ -87,7 +91,10 @@ public class LoadSaveScene extends PixelScene {
 			protected void onClick() {
 				//System.out.println("saveA");
 				try{
-					saveAllSavegame(1);
+					int slot = 1;
+					saveAllSavegame(slot);
+					InterlevelScene.mode = InterlevelScene.Mode.CONTINUE;
+					ShatteredPixelDungeon.switchScene(InterlevelScene.class);
 				}catch (Exception e){
 					ShatteredPixelDungeon.reportException( e );
 				}
@@ -98,7 +105,21 @@ public class LoadSaveScene extends PixelScene {
 			@Override
 			protected void onClick() {
 				try {
-					loadSavegame(1);
+					int slot = 1;
+
+					Mob.clearHeldAllies();
+					GameLog.wipe();
+					loadSavegame(slot);
+					if (Dungeon.depth == -1) {
+						Dungeon.depth = Statistics.deepestFloor;
+						Dungeon.switchLevel( Dungeon.loadLevel( slot ), -1 );
+					} else {
+						Level level = Dungeon.loadLevel( slot );
+						Dungeon.switchLevel( level, Dungeon.hero.pos );
+					}
+					Dungeon.saveAll();
+					InterlevelScene.mode = InterlevelScene.Mode.CONTINUE;
+					ShatteredPixelDungeon.switchScene(InterlevelScene.class);
 				} catch (IOException e) {
 					ShatteredPixelDungeon.reportException(e);
 				}
@@ -126,7 +147,16 @@ public class LoadSaveScene extends PixelScene {
 
 	private void loadSavegame (int slot) throws IOException {
 		slot = slot + 100;
-		Dungeon.loadGame(slot, true);
+		Mob.clearHeldAllies();
+		GameLog.wipe();
+		Dungeon.loadGame( slot , true);
+		if (Dungeon.depth == -1) {
+			Dungeon.depth = Statistics.deepestFloor;
+			Dungeon.switchLevel( Dungeon.loadLevel( slot ), -1 );
+		} else {
+			Level level = Dungeon.loadLevel( slot );
+			Dungeon.switchLevel( level, Dungeon.hero.pos );
+		}
 	}
 
 	@Override
