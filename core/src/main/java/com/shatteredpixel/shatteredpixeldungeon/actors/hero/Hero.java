@@ -1535,7 +1535,7 @@ public class Hero extends Char {
 			((Hero.Doom)cause).onDeath();
 		}
 		
-		Dungeon.deleteGame( GamesInProgress.curSlot, true );
+		//Dungeon.deleteGame( GamesInProgress.curSlot, true ); //Do not delete slot
 	}
 
 	//effectively cache this buff to prevent having to call buff(Berserk.class) a bunch.
