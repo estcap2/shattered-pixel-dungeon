@@ -40,14 +40,18 @@ import com.shatteredpixel.shatteredpixeldungeon.ui.Icons;
 import com.shatteredpixel.shatteredpixeldungeon.ui.RedButton;
 import com.shatteredpixel.shatteredpixeldungeon.ui.RenderedTextBlock;
 import com.shatteredpixel.shatteredpixeldungeon.ui.Window;
+import com.shatteredpixel.shatteredpixeldungeon.utils.DungeonSeed;
 import com.shatteredpixel.shatteredpixeldungeon.windows.WndGameInProgress;
 import com.shatteredpixel.shatteredpixeldungeon.windows.WndLoadSave;
+import com.shatteredpixel.shatteredpixeldungeon.windows.WndOptions;
 import com.shatteredpixel.shatteredpixeldungeon.windows.WndStartGame;
 import com.watabou.noosa.BitmapText;
 import com.watabou.noosa.Camera;
 import com.watabou.noosa.Image;
 import com.watabou.noosa.NinePatch;
 import com.watabou.noosa.ui.Button;
+import com.watabou.utils.Bundle;
+import com.watabou.utils.FileUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -92,9 +96,7 @@ public class LoadSaveScene extends PixelScene {
 				//System.out.println("saveA");
 				try{
 					int slot = 1;
-					saveAllSavegame(slot);
-					InterlevelScene.mode = InterlevelScene.Mode.CONTINUE;
-					ShatteredPixelDungeon.switchScene(InterlevelScene.class);
+					save(slot);
 				}catch (Exception e){
 					ShatteredPixelDungeon.reportException( e );
 				}
@@ -106,20 +108,7 @@ public class LoadSaveScene extends PixelScene {
 			protected void onClick() {
 				try {
 					int slot = 1;
-
-					Mob.clearHeldAllies();
-					GameLog.wipe();
-					loadSavegame(slot);
-					if (Dungeon.depth == -1) {
-						Dungeon.depth = Statistics.deepestFloor;
-						Dungeon.switchLevel( Dungeon.loadLevel( slot ), -1 );
-					} else {
-						Level level = Dungeon.loadLevel( slot );
-						Dungeon.switchLevel( level, Dungeon.hero.pos );
-					}
-					Dungeon.saveAll();
-					InterlevelScene.mode = InterlevelScene.Mode.CONTINUE;
-					ShatteredPixelDungeon.switchScene(InterlevelScene.class);
+					load(slot);
 				} catch (IOException e) {
 					ShatteredPixelDungeon.reportException(e);
 				}
@@ -136,8 +125,15 @@ public class LoadSaveScene extends PixelScene {
 		
 	}
 
-	private void saveAllSavegame(int slot) throws IOException {
+	private void save(int slot) throws IOException {
 		slot = slot + 100;
+		//TODO. ADD OVERWRITE WARNING
+		saveSavegame(slot);
+		InterlevelScene.mode = InterlevelScene.Mode.CONTINUE;
+		ShatteredPixelDungeon.switchScene(InterlevelScene.class);
+	}
+
+	private void saveSavegame(int slot) throws IOException{
 		if (Dungeon.hero != null && Dungeon.hero.isAlive()) {
 			Actor.fixTime();
 			Dungeon.saveGame( slot );
@@ -145,8 +141,7 @@ public class LoadSaveScene extends PixelScene {
 		}
 	}
 
-	private void loadSavegame (int slot) throws IOException {
-		slot = slot + 100;
+	private void loadSavegame(int slot) throws  IOException{
 		Mob.clearHeldAllies();
 		GameLog.wipe();
 		Dungeon.loadGame( slot , true);
@@ -156,6 +151,38 @@ public class LoadSaveScene extends PixelScene {
 		} else {
 			Level level = Dungeon.loadLevel( slot );
 			Dungeon.switchLevel( level, Dungeon.hero.pos );
+		}
+	}
+
+	private void load (int slot) throws IOException {
+		int finalslot = slot + 100;
+		Bundle bundle = FileUtils.bundleFromFile( GamesInProgress.gameFile( finalslot ) );
+		long seed = bundle.contains( "seed" ) ? bundle.getLong( "seed" ) : DungeonSeed.randomSeed();
+		if(Dungeon.seed != seed){
+			ShatteredPixelDungeon.scene().add(new WndOptions(
+					Messages.get(LoadSaveScene.class, "load_different_game_title"),
+					Messages.get(LoadSaveScene.class, "load_different_game_body"),
+					Messages.get(LoadSaveScene.class, "load_different_game_yes"),
+					Messages.get(LoadSaveScene.class, "load_different_game_no") ) {
+				@Override
+				protected void onSelect( int index ){
+					if (index == 0) {
+						try {
+							loadSavegame(finalslot);
+							Dungeon.saveAll();
+							InterlevelScene.mode = InterlevelScene.Mode.CONTINUE;
+							ShatteredPixelDungeon.switchScene(InterlevelScene.class);
+						} catch (IOException e) {
+							ShatteredPixelDungeon.reportException(e);
+						}
+					}
+				}
+			} );
+		} else {
+			loadSavegame(finalslot);
+			Dungeon.saveAll();
+			InterlevelScene.mode = InterlevelScene.Mode.CONTINUE;
+			ShatteredPixelDungeon.switchScene(InterlevelScene.class);
 		}
 	}
 
