@@ -22,14 +22,12 @@
 package com.shatteredpixel.shatteredpixeldungeon.scenes;
 
 import com.shatteredpixel.shatteredpixeldungeon.Badges;
-import com.shatteredpixel.shatteredpixeldungeon.Chrome;
 import com.shatteredpixel.shatteredpixeldungeon.Dungeon;
 import com.shatteredpixel.shatteredpixeldungeon.GamesInProgress;
 import com.shatteredpixel.shatteredpixeldungeon.ShatteredPixelDungeon;
 import com.shatteredpixel.shatteredpixeldungeon.Statistics;
 import com.shatteredpixel.shatteredpixeldungeon.actors.Actor;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.Hero;
-import com.shatteredpixel.shatteredpixeldungeon.actors.hero.HeroSubClass;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Mob;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.npcs.Blacksmith;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.npcs.Ghost;
@@ -40,31 +38,20 @@ import com.shatteredpixel.shatteredpixeldungeon.items.Item;
 import com.shatteredpixel.shatteredpixeldungeon.items.potions.Potion;
 import com.shatteredpixel.shatteredpixeldungeon.items.rings.Ring;
 import com.shatteredpixel.shatteredpixeldungeon.items.scrolls.Scroll;
-import com.shatteredpixel.shatteredpixeldungeon.journal.Journal;
 import com.shatteredpixel.shatteredpixeldungeon.journal.Notes;
 import com.shatteredpixel.shatteredpixeldungeon.levels.Level;
 import com.shatteredpixel.shatteredpixeldungeon.levels.rooms.secret.SecretRoom;
 import com.shatteredpixel.shatteredpixeldungeon.levels.rooms.special.SpecialRoom;
 import com.shatteredpixel.shatteredpixeldungeon.messages.Messages;
 import com.shatteredpixel.shatteredpixeldungeon.ui.Archs;
-import com.shatteredpixel.shatteredpixeldungeon.ui.ExitButton;
 import com.shatteredpixel.shatteredpixeldungeon.ui.GameLog;
-import com.shatteredpixel.shatteredpixeldungeon.ui.Icons;
 import com.shatteredpixel.shatteredpixeldungeon.ui.QuickSlotButton;
 import com.shatteredpixel.shatteredpixeldungeon.ui.RedButton;
 import com.shatteredpixel.shatteredpixeldungeon.ui.RenderedTextBlock;
 import com.shatteredpixel.shatteredpixeldungeon.ui.Window;
 import com.shatteredpixel.shatteredpixeldungeon.utils.DungeonSeed;
-import com.shatteredpixel.shatteredpixeldungeon.windows.WndGameInProgress;
-import com.shatteredpixel.shatteredpixeldungeon.windows.WndLoadSave;
-import com.shatteredpixel.shatteredpixeldungeon.windows.WndOptions;
-import com.shatteredpixel.shatteredpixeldungeon.windows.WndStartGame;
-import com.watabou.noosa.BitmapText;
 import com.watabou.noosa.Camera;
 import com.watabou.noosa.Game;
-import com.watabou.noosa.Image;
-import com.watabou.noosa.NinePatch;
-import com.watabou.noosa.ui.Button;
 import com.watabou.utils.Bundlable;
 import com.watabou.utils.Bundle;
 import com.watabou.utils.FileUtils;
@@ -76,11 +63,11 @@ import java.util.HashSet;
 
 public class LoadSaveScene extends PixelScene {
 
-	private static final String GAME_FOLDER = "game%d";
+	private static final int MAX_SLOTS = 5;
 	private static final String GAME_FILE	= "game.dat";
 	private static final String DEPTH_FILE	= "depth%d.dat";
 
-	private static final int SLOT_WIDTH = 120;
+	private static final int SLOT_WIDTH = 900;
 	private static final int SLOT_HEIGHT = 30;
 	private static int BTN_WIDTH = 50;
 	private static int BTN_HEIGHT = 15;
@@ -153,6 +140,60 @@ public class LoadSaveScene extends PixelScene {
 
 		add(btnLoad1);
 		add(btnSave1);
+/*
+		//TODO
+		ArrayList<GamesInProgress.Info> games = GamesInProgress.checkAll();
+
+		int slotGap = landscape() ? 5 : 10;
+		int slotCount = Math.min(GamesInProgress.MAX_SLOTS, games.size()+1);
+		int slotsHeight = slotCount*SLOT_HEIGHT + (slotCount-1)* slotGap;
+
+		float yPos = (h - slotsHeight)/2f;
+		if (landscape()) yPos += 8;
+
+		for(int i = 0; i < games.size(); i++){
+			GamesInProgress.Info game = games.get(i);
+
+			if(game != null){
+				LoadStateButton btnLoad = new LoadStateButton( "Load", "sublabel" ) {
+					@Override
+					protected void onClick() {
+						try {
+							int slot = 1;
+							load(slot);
+						} catch (IOException e) {
+							ShatteredPixelDungeon.reportException(e);
+						}
+					}
+				};
+
+				int btnLoadX = 10;
+				int btnLoadY = 150;
+				btnLoad.setRect(btnLoadX, btnLoadY, BTN_WIDTH+ 50, BTN_HEIGHT + 50);
+				btnLoad.layout();
+				add(btnLoad);
+			} else {
+				//TODO: addempty
+			}
+
+
+
+		}*/
+
+/*
+		for (GamesInProgress.Info game : games) {
+
+
+
+
+			SaveStateButton existingGame = new SaveStateButton();
+			existingGame.set(game.slot);
+			existingGame.setRect((w - SLOT_WIDTH) / 2f, yPos, SLOT_WIDTH, SLOT_HEIGHT);
+			yPos += SLOT_HEIGHT + slotGap;
+			align(existingGame);
+			add(existingGame);
+
+		}*/
 
 		fadeIn();
 
@@ -252,7 +293,7 @@ public class LoadSaveScene extends PixelScene {
 			Badges.saveLocal( badges );
 			bundle.put( BADGES, badges );
 
-			FileUtils.bundleToFile( stateFile(save), bundle);
+			FileUtils.bundleToFile( gameStateFile(save), bundle);
 
 		} catch (IOException e) {
 			GamesInProgress.setUnknown( save );
@@ -269,7 +310,7 @@ public class LoadSaveScene extends PixelScene {
 
 	private void loadStateGame( int save, boolean fullLoad ) throws IOException {
 
-		Bundle bundle = FileUtils.bundleFromFile( stateFile( save ) );
+		Bundle bundle = FileUtils.bundleFromFile( gameStateFile( save ) );
 
 		Dungeon.version = bundle.getInt( VERSION );
 
@@ -395,7 +436,7 @@ public class LoadSaveScene extends PixelScene {
 		return stateFolder(slot) + "/" + Messages.format(DEPTH_FILE, depth);
 	}
 
-	private String stateFile(int slot){
+	private String gameStateFile(int slot){
 		return stateFolder(slot) + "/" + GAME_FILE;
 	}
 
@@ -403,9 +444,86 @@ public class LoadSaveScene extends PixelScene {
 		return GamesInProgress.gameFolder(GamesInProgress.curSlot) + "/savestate" + slot;
 	}
 
+	private static boolean gameExists( int slot ){
+		return FileUtils.dirExists(stateFolder(slot));
+	}
+
+	private GamesInProgress.Info checkState(int slot ) {
+
+		if(!gameExists(slot)){
+			return null;
+		} else {
+			GamesInProgress.Info info;
+			try {
+				Bundle bundle = FileUtils.bundleFromFile(gameStateFile(slot));
+				info = new GamesInProgress.Info();
+				info.slot = slot;
+				Dungeon.preview(info, bundle);
+
+				//saves from before 0.6.5c are not supported
+				if (info.version < ShatteredPixelDungeon.v0_6_5c) {
+					info = null;
+				}
+
+			} catch (IOException e) {
+				info = null;
+			} catch (Exception e){
+				ShatteredPixelDungeon.reportException( e );
+				info = null;
+			}
+			return info;
+
+		}
+	}
+
+	private ArrayList<GamesInProgress.Info> checkAllStates(){
+		ArrayList<GamesInProgress.Info> result = new ArrayList<>();
+		for (int i = 0; i <= MAX_SLOTS; i++){
+			GamesInProgress.Info curr = checkState(i);
+			if (curr != null) result.add(curr);
+		}
+		//Collections.sort(result, scoreComparator); TODO: Do I want to compare them? We want them in the order of the slots
+		return result;
+	}
+
 	@Override
 	protected void onBackPressed() {
 		InterlevelScene.mode = InterlevelScene.Mode.CONTINUE;
 		ShatteredPixelDungeon.switchScene(InterlevelScene.class);
 	}
+/*
+	private static class LoadStateButton extends RedButton {
+		protected RenderedTextBlock subtitle;
+		protected int size = 6;
+
+		public LoadStateButton(String label, String subtitle) {
+			super(label);
+			this.subtitle = PixelScene.renderTextBlock(size);
+			this.subtitle.text("thisisthelabel");
+		}
+
+		public LoadStateButton(String label, String subtitle, int size) {
+			super(label, size);
+			this.size = size;
+			this.subtitle.text("this is a label");
+		}
+
+		@Override
+		protected void createChildren() {
+			super.createChildren();
+			subtitle = PixelScene.renderTextBlock(30);
+			add(subtitle);
+		}
+
+		@Override
+		protected void layout() {
+			super.layout();
+
+			subtitle.setPos(
+					centerX(),centerY()
+			);
+		//	align(subtitle);
+		}
+
+	}*/
 }
