@@ -22,12 +22,14 @@
 package com.shatteredpixel.shatteredpixeldungeon.scenes;
 
 import com.shatteredpixel.shatteredpixeldungeon.Badges;
+import com.shatteredpixel.shatteredpixeldungeon.Chrome;
 import com.shatteredpixel.shatteredpixeldungeon.Dungeon;
 import com.shatteredpixel.shatteredpixeldungeon.GamesInProgress;
 import com.shatteredpixel.shatteredpixeldungeon.ShatteredPixelDungeon;
 import com.shatteredpixel.shatteredpixeldungeon.Statistics;
 import com.shatteredpixel.shatteredpixeldungeon.actors.Actor;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.Hero;
+import com.shatteredpixel.shatteredpixeldungeon.actors.hero.HeroSubClass;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Mob;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.npcs.Blacksmith;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.npcs.Ghost;
@@ -45,13 +47,21 @@ import com.shatteredpixel.shatteredpixeldungeon.levels.rooms.special.SpecialRoom
 import com.shatteredpixel.shatteredpixeldungeon.messages.Messages;
 import com.shatteredpixel.shatteredpixeldungeon.ui.Archs;
 import com.shatteredpixel.shatteredpixeldungeon.ui.GameLog;
+import com.shatteredpixel.shatteredpixeldungeon.ui.Icons;
 import com.shatteredpixel.shatteredpixeldungeon.ui.QuickSlotButton;
 import com.shatteredpixel.shatteredpixeldungeon.ui.RedButton;
 import com.shatteredpixel.shatteredpixeldungeon.ui.RenderedTextBlock;
 import com.shatteredpixel.shatteredpixeldungeon.ui.Window;
 import com.shatteredpixel.shatteredpixeldungeon.utils.DungeonSeed;
+import com.shatteredpixel.shatteredpixeldungeon.windows.WndGameInProgress;
+import com.shatteredpixel.shatteredpixeldungeon.windows.WndOptions;
+import com.shatteredpixel.shatteredpixeldungeon.windows.WndStartGame;
+import com.watabou.noosa.BitmapText;
 import com.watabou.noosa.Camera;
 import com.watabou.noosa.Game;
+import com.watabou.noosa.Image;
+import com.watabou.noosa.NinePatch;
+import com.watabou.noosa.ui.Button;
 import com.watabou.utils.Bundlable;
 import com.watabou.utils.Bundle;
 import com.watabou.utils.FileUtils;
@@ -67,7 +77,7 @@ public class LoadSaveScene extends PixelScene {
 	private static final String GAME_FILE	= "game.dat";
 	private static final String DEPTH_FILE	= "depth%d.dat";
 
-	private static final int SLOT_WIDTH = 900;
+	private static final int SLOT_WIDTH = 120;
 	private static final int SLOT_HEIGHT = 30;
 	private static int BTN_WIDTH = 50;
 	private static int BTN_HEIGHT = 15;
@@ -140,7 +150,7 @@ public class LoadSaveScene extends PixelScene {
 
 		add(btnLoad1);
 		add(btnSave1);
-/*
+
 		//TODO
 		ArrayList<GamesInProgress.Info> games = GamesInProgress.checkAll();
 
@@ -155,22 +165,11 @@ public class LoadSaveScene extends PixelScene {
 			GamesInProgress.Info game = games.get(i);
 
 			if(game != null){
-				LoadStateButton btnLoad = new LoadStateButton( "Load", "sublabel" ) {
-					@Override
-					protected void onClick() {
-						try {
-							int slot = 1;
-							load(slot);
-						} catch (IOException e) {
-							ShatteredPixelDungeon.reportException(e);
-						}
-					}
-				};
-
-				int btnLoadX = 10;
-				int btnLoadY = 150;
-				btnLoad.setRect(btnLoadX, btnLoadY, BTN_WIDTH+ 50, BTN_HEIGHT + 50);
-				btnLoad.layout();
+				SaveStateButton btnLoad = new SaveStateButton();
+				btnLoad.set(game.slot);
+				btnLoad.setRect((w - SLOT_WIDTH) / 2f, yPos, SLOT_WIDTH, SLOT_HEIGHT);
+				yPos += SLOT_HEIGHT + slotGap;
+				align(btnLoad);
 				add(btnLoad);
 			} else {
 				//TODO: addempty
@@ -178,23 +177,7 @@ public class LoadSaveScene extends PixelScene {
 
 
 
-		}*/
-
-/*
-		for (GamesInProgress.Info game : games) {
-
-
-
-
-			SaveStateButton existingGame = new SaveStateButton();
-			existingGame.set(game.slot);
-			existingGame.setRect((w - SLOT_WIDTH) / 2f, yPos, SLOT_WIDTH, SLOT_HEIGHT);
-			yPos += SLOT_HEIGHT + slotGap;
-			align(existingGame);
-			add(existingGame);
-
-		}*/
-
+		}
 		fadeIn();
 
 	}
@@ -491,39 +474,201 @@ public class LoadSaveScene extends PixelScene {
 		InterlevelScene.mode = InterlevelScene.Mode.CONTINUE;
 		ShatteredPixelDungeon.switchScene(InterlevelScene.class);
 	}
-/*
-	private static class LoadStateButton extends RedButton {
-		protected RenderedTextBlock subtitle;
-		protected int size = 6;
 
-		public LoadStateButton(String label, String subtitle) {
-			super(label);
-			this.subtitle = PixelScene.renderTextBlock(size);
-			this.subtitle.text("thisisthelabel");
-		}
+	private class SaveStateButton extends Button {
 
-		public LoadStateButton(String label, String subtitle, int size) {
-			super(label, size);
-			this.size = size;
-			this.subtitle.text("this is a label");
-		}
+		private NinePatch bg;
+
+		private Image hero;
+		private RenderedTextBlock name;
+
+		private Image steps;
+		private BitmapText depth;
+		private Image classIcon;
+		private BitmapText level;
+
+		private int slot;
+		private boolean emptyState;
 
 		@Override
 		protected void createChildren() {
 			super.createChildren();
-			subtitle = PixelScene.renderTextBlock(30);
-			add(subtitle);
+
+			bg = Chrome.get(Chrome.Type.GEM);
+			add( bg);
+
+			name = PixelScene.renderTextBlock(9);
+			add(name);
+		}
+
+		public void set( int slot ){
+			this.slot = slot;
+			GamesInProgress.Info info = checkState(slot);
+			emptyState = info == null;
+			if (emptyState){
+				name.text( "(Empty)");
+
+				if (hero != null){
+					remove(hero);
+					hero = null;
+					remove(steps);
+					steps = null;
+					remove(depth);
+					depth = null;
+					remove(classIcon);
+					classIcon = null;
+					remove(level);
+					level = null;
+				}
+			} else {
+
+				if (info.subClass != HeroSubClass.NONE){
+					name.text(Messages.titleCase(info.subClass.title()));
+				} else {
+					name.text(Messages.titleCase(info.heroClass.title()));
+				}
+
+				if (hero == null){
+					hero = new Image(info.heroClass.spritesheet(), 0, 15*info.armorTier, 12, 15);
+					add(hero);
+
+					steps = new Image(Icons.get(Icons.DEPTH));
+					add(steps);
+					depth = new BitmapText(PixelScene.pixelFont);
+					add(depth);
+
+					classIcon = new Image(Icons.get(info.heroClass));
+					add(classIcon);
+					level = new BitmapText(PixelScene.pixelFont);
+					add(level);
+				} else {
+					hero.copy(new Image(info.heroClass.spritesheet(), 0, 15*info.armorTier, 12, 15));
+
+					classIcon.copy(Icons.get(info.heroClass));
+				}
+
+				depth.text(Integer.toString(info.depth));
+				depth.measure();
+
+				level.text(Integer.toString(info.level));
+				level.measure();
+
+				if (info.challenges > 0){
+					name.hardlight(Window.TITLE_COLOR);
+					depth.hardlight(Window.TITLE_COLOR);
+					level.hardlight(Window.TITLE_COLOR);
+				} else {
+					name.resetColor();
+					depth.resetColor();
+					level.resetColor();
+				}
+
+			}
+
+			layout();
 		}
 
 		@Override
 		protected void layout() {
 			super.layout();
 
-			subtitle.setPos(
-					centerX(),centerY()
-			);
-		//	align(subtitle);
+			bg.x = x;
+			bg.y = y;
+			bg.size( width, height );
+
+			if (hero != null){
+				hero.x = x+8;
+				hero.y = y + (height - hero.height())/2f;
+				align(hero);
+
+				name.setPos(
+						hero.x + hero.width() + 6,
+						y + (height - name.height())/2f
+				);
+				align(name);
+
+				classIcon.x = x + width - 24 + (16 - classIcon.width())/2f;
+				classIcon.y = y + (height - classIcon.height())/2f;
+				align(classIcon);
+
+				level.x = classIcon.x + (classIcon.width() - level.width()) / 2f;
+				level.y = classIcon.y + (classIcon.height() - level.height()) / 2f + 1;
+				align(level);
+
+				steps.x = x + width - 40 + (16 - steps.width())/2f;
+				steps.y = y + (height - steps.height())/2f;
+				align(steps);
+
+				depth.x = steps.x + (steps.width() - depth.width()) / 2f;
+				depth.y = steps.y + (steps.height() - depth.height()) / 2f + 1;
+				align(depth);
+
+			} else {
+				name.setPos(
+						x + (width - name.width())/2f,
+						y + (height - name.height())/2f
+				);
+				align(name);
+			}
+
+
 		}
 
-	}*/
+		@Override
+		protected void onClick() {
+			if (!emptyState) {
+				//ShatteredPixelDungeon.scene().add( new WndGameInProgress(slot));
+
+				GamesInProgress.Info info = checkState(slot);
+
+				String progressDescription = "";
+				String heroType = "CLASS";
+				int level = 0;
+				int depth = 0;
+				int strength = 0;
+				int health = 0;
+				int healthMax = 0;
+				int experience = 0;
+				int gold = 0;
+				int maxDepth = 1;
+				if(info != null){
+					if (info.subClass != HeroSubClass.NONE){
+						heroType = Messages.titleCase(info.subClass.title());
+					} else {
+						heroType = Messages.titleCase(info.heroClass.title());
+					}
+					level = info.level;
+					depth = info.depth;
+					strength = info.str;
+					health = info.hp;
+					healthMax = info.ht;
+					experience = info.exp;
+					gold = info.goldCollected;
+					maxDepth = info.maxDepth;
+				}
+
+				ShatteredPixelDungeon.scene().add(new WndOptions(
+						"Load Depth " +depth +", Level " + level + " " + heroType + "?",
+						"Your current progress will be overwritten with the following savestate:\n" +
+								"\nStrength: " + strength +
+								"\nHealth: " + health + "/" + healthMax +
+								"\nExperience: " + experience +
+								"\n\nGold Collected: " + gold +
+								"\nMaximum Depth: " + maxDepth,
+						"Yes, load savegame",
+						"Cancel") {
+					@Override
+					protected void onSelect( int index ){
+						if (index == 0) {
+							try {
+								load(slot);
+							} catch (IOException e) {
+								ShatteredPixelDungeon.reportException(e);
+							}
+						}
+					}
+				} );
+			}
+		}
+	}
 }
