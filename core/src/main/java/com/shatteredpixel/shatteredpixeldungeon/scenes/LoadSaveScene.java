@@ -53,9 +53,7 @@ import com.shatteredpixel.shatteredpixeldungeon.ui.RedButton;
 import com.shatteredpixel.shatteredpixeldungeon.ui.RenderedTextBlock;
 import com.shatteredpixel.shatteredpixeldungeon.ui.Window;
 import com.shatteredpixel.shatteredpixeldungeon.utils.DungeonSeed;
-import com.shatteredpixel.shatteredpixeldungeon.windows.WndGameInProgress;
 import com.shatteredpixel.shatteredpixeldungeon.windows.WndOptions;
-import com.shatteredpixel.shatteredpixeldungeon.windows.WndStartGame;
 import com.watabou.noosa.BitmapText;
 import com.watabou.noosa.Camera;
 import com.watabou.noosa.Game;
@@ -73,11 +71,11 @@ import java.util.HashSet;
 
 public class LoadSaveScene extends PixelScene {
 
-	private static final int MAX_SLOTS = 5;
+	private static final int MAX_SLOTS = 4;
 	private static final String GAME_FILE	= "game.dat";
 	private static final String DEPTH_FILE	= "depth%d.dat";
 
-	private static final int SLOT_WIDTH = 120;
+	private static final int SLOT_WIDTH = 70;
 	private static final int SLOT_HEIGHT = 30;
 	private static int BTN_WIDTH = 50;
 	private static int BTN_HEIGHT = 15;
@@ -99,7 +97,6 @@ public class LoadSaveScene extends PixelScene {
 	@Override
 	public void create() {
 		super.create();
-
 		uiCamera.visible = false;
 
 		int w = Camera.main.width;
@@ -118,8 +115,13 @@ public class LoadSaveScene extends PixelScene {
 		align(title);
 		add(title);
 
-		//TODO: multiple slots, details of savegames (using start screen style)
+		try {
+			Dungeon.saveAll();
+		} catch (IOException e) {
+			ShatteredPixelDungeon.reportException(e);
+		}
 
+/*
 		RedButton btnSave1 = new RedButton( Messages.get(this, "save") ) {
 			@Override
 			protected void onClick() {
@@ -149,13 +151,12 @@ public class LoadSaveScene extends PixelScene {
 		btnLoad1.setRect(80, 100, BTN_WIDTH, BTN_HEIGHT);
 
 		add(btnLoad1);
-		add(btnSave1);
+		add(btnSave1);*/
 
-		//TODO
-		ArrayList<GamesInProgress.Info> games = GamesInProgress.checkAll();
+		ArrayList<GamesInProgress.Info> games = checkAllStates();
 
-		int slotGap = landscape() ? 5 : 10;
-		int slotCount = Math.min(GamesInProgress.MAX_SLOTS, games.size()+1);
+		int slotGap = landscape() ? 5 : 5;
+		int slotCount = Math.min(MAX_SLOTS, games.size()+1);
 		int slotsHeight = slotCount*SLOT_HEIGHT + (slotCount-1)* slotGap;
 
 		float yPos = (h - slotsHeight)/2f;
@@ -164,22 +165,35 @@ public class LoadSaveScene extends PixelScene {
 		for(int i = 0; i < games.size(); i++){
 			GamesInProgress.Info game = games.get(i);
 
-			if(game != null){
-				SaveStateButton btnLoad = new SaveStateButton();
-				btnLoad.set(game.slot);
-				btnLoad.setRect((w - SLOT_WIDTH) / 2f, yPos, SLOT_WIDTH, SLOT_HEIGHT);
-				yPos += SLOT_HEIGHT + slotGap;
-				align(btnLoad);
-				add(btnLoad);
+			//Add load Button
+			SaveStateButton btnLoad = new SaveStateButton(false);
+			if(game == null){ //empty savestate
+				btnLoad.emptyState = true;
+				btnLoad.setBtnText("(Empty)");
 			} else {
-				//TODO: addempty
+				btnLoad.set(i);
 			}
+			float loadXPos = w - SLOT_WIDTH - 3;
+			btnLoad.setRect(loadXPos, yPos, SLOT_WIDTH, SLOT_HEIGHT);
+			align(btnLoad);
+			add(btnLoad);
 
+			//Add save Button
+			SaveStateButton btnSave = new SaveStateButton(true);
+			btnSave.slot = i;
+			float saveXPos = 3;
+			if(game == null){
+				btnSave.emptyState = true;
+			}
+			btnSave.setBtnText("Save");
+			btnSave.setRect(saveXPos, yPos, SLOT_WIDTH, SLOT_HEIGHT);
+			align(btnSave);
+			add(btnSave);
 
+			yPos += SLOT_HEIGHT + slotGap;
 
 		}
 		fadeIn();
-
 	}
 
 	/**
@@ -194,6 +208,7 @@ public class LoadSaveScene extends PixelScene {
 			saveStateGame( slot );
 			saveStateLevel( slot );
 		}
+
 		InterlevelScene.mode = InterlevelScene.Mode.CONTINUE;
 		ShatteredPixelDungeon.switchScene(InterlevelScene.class);
 	}
@@ -279,7 +294,7 @@ public class LoadSaveScene extends PixelScene {
 			FileUtils.bundleToFile( gameStateFile(save), bundle);
 
 		} catch (IOException e) {
-			GamesInProgress.setUnknown( save );
+			//GamesInProgress.setUnknown( save ); //TODO: implement deletion?
 			ShatteredPixelDungeon.reportException(e);
 		}
 	}
@@ -461,9 +476,9 @@ public class LoadSaveScene extends PixelScene {
 
 	private ArrayList<GamesInProgress.Info> checkAllStates(){
 		ArrayList<GamesInProgress.Info> result = new ArrayList<>();
-		for (int i = 0; i <= MAX_SLOTS; i++){
+		for (int i = 0; i <= MAX_SLOTS - 1; i++){
 			GamesInProgress.Info curr = checkState(i);
-			if (curr != null) result.add(curr);
+			result.add(curr);
 		}
 		//Collections.sort(result, scoreComparator); TODO: Do I want to compare them? We want them in the order of the slots
 		return result;
@@ -480,7 +495,7 @@ public class LoadSaveScene extends PixelScene {
 		private NinePatch bg;
 
 		private Image hero;
-		private RenderedTextBlock name;
+		private RenderedTextBlock btnText;
 
 		private Image steps;
 		private BitmapText depth;
@@ -490,6 +505,8 @@ public class LoadSaveScene extends PixelScene {
 		private int slot;
 		private boolean emptyState;
 
+		private boolean isSaveButton;
+
 		@Override
 		protected void createChildren() {
 			super.createChildren();
@@ -497,17 +514,28 @@ public class LoadSaveScene extends PixelScene {
 			bg = Chrome.get(Chrome.Type.GEM);
 			add( bg);
 
-			name = PixelScene.renderTextBlock(9);
-			add(name);
+			btnText = PixelScene.renderTextBlock(8);
+			add(btnText);
 		}
 
-		public void set( int slot ){
+		public void setEmptyState(boolean emptyState) {
+			this.emptyState = emptyState;
+		}
+
+		public void setBtnText(String text) {
+			btnText.text(text);
+		}
+
+		public SaveStateButton(boolean isSaveButton) {
+			this.isSaveButton = isSaveButton;
+		}
+
+		public void set(int slot ){
 			this.slot = slot;
 			GamesInProgress.Info info = checkState(slot);
 			emptyState = info == null;
 			if (emptyState){
-				name.text( "(Empty)");
-
+				btnText.text( "(Empty)");
 				if (hero != null){
 					remove(hero);
 					hero = null;
@@ -521,17 +549,9 @@ public class LoadSaveScene extends PixelScene {
 					level = null;
 				}
 			} else {
-
-				if (info.subClass != HeroSubClass.NONE){
-					name.text(Messages.titleCase(info.subClass.title()));
-				} else {
-					name.text(Messages.titleCase(info.heroClass.title()));
-				}
-
+				btnText.text("Load");
 				if (hero == null){
 					hero = new Image(info.heroClass.spritesheet(), 0, 15*info.armorTier, 12, 15);
-					add(hero);
-
 					steps = new Image(Icons.get(Icons.DEPTH));
 					add(steps);
 					depth = new BitmapText(PixelScene.pixelFont);
@@ -554,11 +574,11 @@ public class LoadSaveScene extends PixelScene {
 				level.measure();
 
 				if (info.challenges > 0){
-					name.hardlight(Window.TITLE_COLOR);
+					btnText.hardlight(Window.TITLE_COLOR);
 					depth.hardlight(Window.TITLE_COLOR);
 					level.hardlight(Window.TITLE_COLOR);
 				} else {
-					name.resetColor();
+					btnText.resetColor();
 					depth.resetColor();
 					level.resetColor();
 				}
@@ -581,11 +601,11 @@ public class LoadSaveScene extends PixelScene {
 				hero.y = y + (height - hero.height())/2f;
 				align(hero);
 
-				name.setPos(
-						hero.x + hero.width() + 6,
-						y + (height - name.height())/2f
+				btnText.setPos(
+						hero.x + 3,
+						y + (height - btnText.height())/2f
 				);
-				align(name);
+				align(btnText);
 
 				classIcon.x = x + width - 24 + (16 - classIcon.width())/2f;
 				classIcon.y = y + (height - classIcon.height())/2f;
@@ -604,70 +624,92 @@ public class LoadSaveScene extends PixelScene {
 				align(depth);
 
 			} else {
-				name.setPos(
-						x + (width - name.width())/2f,
-						y + (height - name.height())/2f
+				btnText.setPos(
+						x + (width - btnText.width())/2f,
+						y + (height - btnText.height())/2f
 				);
-				align(name);
+				align(btnText);
 			}
-
-
 		}
 
 		@Override
 		protected void onClick() {
-			if (!emptyState) {
-				//ShatteredPixelDungeon.scene().add( new WndGameInProgress(slot));
-
-				GamesInProgress.Info info = checkState(slot);
-
-				String progressDescription = "";
-				String heroType = "CLASS";
-				int level = 0;
-				int depth = 0;
-				int strength = 0;
-				int health = 0;
-				int healthMax = 0;
-				int experience = 0;
-				int gold = 0;
-				int maxDepth = 1;
-				if(info != null){
-					if (info.subClass != HeroSubClass.NONE){
-						heroType = Messages.titleCase(info.subClass.title());
-					} else {
-						heroType = Messages.titleCase(info.heroClass.title());
+			if(isSaveButton){
+				if (emptyState) {
+					try {
+						save(slot);
+					} catch (IOException e) {
+						ShatteredPixelDungeon.reportException(e);
 					}
-					level = info.level;
-					depth = info.depth;
-					strength = info.str;
-					health = info.hp;
-					healthMax = info.ht;
-					experience = info.exp;
-					gold = info.goldCollected;
-					maxDepth = info.maxDepth;
-				}
-
-				ShatteredPixelDungeon.scene().add(new WndOptions(
-						"Load Depth " +depth +", Level " + level + " " + heroType + "?",
-						"Your current progress will be overwritten with the following savestate:\n" +
-								"\nStrength: " + strength +
-								"\nHealth: " + health + "/" + healthMax +
-								"\nExperience: " + experience +
-								"\n\nGold Collected: " + gold +
-								"\nMaximum Depth: " + maxDepth,
-						"Yes, load savegame",
-						"Cancel") {
-					@Override
-					protected void onSelect( int index ){
-						if (index == 0) {
-							try {
-								load(slot);
-							} catch (IOException e) {
-								ShatteredPixelDungeon.reportException(e);
+				} else {
+					ShatteredPixelDungeon.scene().add(new WndOptions(
+							"Overwrite Savestate " + slot +"?",
+							"This savestate will be overwritten with your current progress",
+							"Yes, overwrite Savestate",
+							"Cancel" ) {
+						@Override
+						protected void onSelect( int index ){
+							if (index == 0) {
+								try {
+									save(slot);
+								} catch (IOException e) {
+									ShatteredPixelDungeon.reportException(e);
+								}
 							}
 						}
+					} );
+				}
+			} else {
+				if (!emptyState) {
+					GamesInProgress.Info info = checkState(slot);
+					String progressDescription = "";
+					String heroType = "CLASS";
+					int level = 0;
+					int depth = 0;
+					int strength = 0;
+					int health = 0;
+					int healthMax = 0;
+					int experience = 0;
+					int gold = 0;
+					int maxDepth = 1;
+					if(info != null){
+						if (info.subClass != HeroSubClass.NONE){
+							heroType = Messages.titleCase(info.subClass.title());
+						} else {
+							heroType = Messages.titleCase(info.heroClass.title());
+						}
+						level = info.level;
+						depth = info.depth;
+						strength = info.str;
+						health = info.hp;
+						healthMax = info.ht;
+						experience = info.exp;
+						gold = info.goldCollected;
+						maxDepth = info.maxDepth;
 					}
-				} );
+
+					ShatteredPixelDungeon.scene().add(new WndOptions(
+							"Load Depth " +depth +", Level " + level + " " + heroType + "?",
+							"Your current progress will be overwritten with the following savestate:\n" +
+									"\nStrength: " + strength +
+									"\nHealth: " + health + "/" + healthMax +
+									"\nExperience: " + experience +
+									"\n\nGold Collected: " + gold +
+									"\nMaximum Depth: " + maxDepth,
+							"Yes, load savegame",
+							"Cancel") {
+						@Override
+						protected void onSelect( int index ){
+							if (index == 0) {
+								try {
+									load(slot);
+								} catch (IOException e) {
+									ShatteredPixelDungeon.reportException(e);
+								}
+							}
+						}
+					} );
+				}
 			}
 		}
 	}
