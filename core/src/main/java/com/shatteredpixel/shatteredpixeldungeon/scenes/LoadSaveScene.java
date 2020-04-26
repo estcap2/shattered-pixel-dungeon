@@ -96,6 +96,10 @@ public class LoadSaveScene extends PixelScene {
 
 	@Override
 	public void create() {
+
+		//TODO: if hero is dead, going back to game will result in hero being alive again
+		//TODO: We cannot currently save it between game and savegame screen since the hero is dead
+
 		super.create();
 		uiCamera.visible = false;
 
