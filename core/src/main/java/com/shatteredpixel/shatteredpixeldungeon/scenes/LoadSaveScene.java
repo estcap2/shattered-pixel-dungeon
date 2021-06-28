@@ -694,7 +694,7 @@ public class LoadSaveScene extends PixelScene {
 
 					ShatteredPixelDungeon.scene().add(new WndOptions(
 							"Load Depth " +depth +", Level " + level + " " + heroType + "?",
-							"Your current progress will be overwritten with the following savestate:\n" +
+							"Your current progress will revert to the following savestate:\n" +
 									"\nStrength: " + strength +
 									"\nHealth: " + health + "/" + healthMax +
 									"\nExperience: " + experience +
