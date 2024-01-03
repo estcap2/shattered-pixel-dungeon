@@ -3,7 +3,7 @@
  * Copyright (C) 2012-2015 Oleg Dolya
  *
  * Shattered Pixel Dungeon
- * Copyright (C) 2014-2019 Evan Debenham
+ * Copyright (C) 2014-2023 Evan Debenham
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -21,18 +21,32 @@
 
 package com.shatteredpixel.shatteredpixeldungeon.items.rings;
 
+import com.shatteredpixel.shatteredpixeldungeon.Dungeon;
 import com.shatteredpixel.shatteredpixeldungeon.actors.Char;
+import com.shatteredpixel.shatteredpixeldungeon.actors.hero.Hero;
+import com.shatteredpixel.shatteredpixeldungeon.actors.hero.HeroClass;
+import com.shatteredpixel.shatteredpixeldungeon.actors.hero.Talent;
 import com.shatteredpixel.shatteredpixeldungeon.messages.Messages;
-
-import java.text.DecimalFormat;
+import com.shatteredpixel.shatteredpixeldungeon.sprites.ItemSpriteSheet;
 
 public class RingOfEnergy extends Ring {
-	
+
+	{
+		icon = ItemSpriteSheet.Icons.RING_ENERGY;
+	}
+
 	public String statsInfo() {
 		if (isIdentified()){
-			return Messages.get(this, "stats", new DecimalFormat("#.##").format(100f * (Math.pow(1.30f, soloBuffedBonus()) - 1f)));
+			String info = Messages.get(this, "stats",
+					Messages.decimalFormat("#.##", 100f * (Math.pow(1.15f, soloBuffedBonus()) - 1f)));
+			if (isEquipped(Dungeon.hero) && soloBuffedBonus() != combinedBuffedBonus(Dungeon.hero, Energy.class)){
+				info += "\n\n" + Messages.get(this, "combined_stats",
+						Messages.decimalFormat("#.##", 100f * (Math.pow(1.15f, combinedBuffedBonus(Dungeon.hero, Energy.class)) - 1f)));
+			}
+			return info;
 		} else {
-			return Messages.get(this, "typical_stats", new DecimalFormat("#.##").format(30f));
+			return Messages.get(this, "typical_stats",
+					Messages.decimalFormat("#.##", 15f));
 		}
 	}
 	
@@ -42,7 +56,21 @@ public class RingOfEnergy extends Ring {
 	}
 	
 	public static float wandChargeMultiplier( Char target ){
-		return (float)Math.pow(1.30, getBuffedBonus(target, Energy.class));
+		return (float)Math.pow(1.15, getBuffedBonus(target, Energy.class));
+	}
+
+	public static float artifactChargeMultiplier( Char target ){
+		float bonus = (float)Math.pow(1.15, getBuffedBonus(target, Energy.class));
+
+		if (target instanceof Hero && ((Hero) target).heroClass != HeroClass.ROGUE && ((Hero) target).hasTalent(Talent.LIGHT_CLOAK)){
+			bonus *= 1f + (0.2f * ((Hero) target).pointsInTalent(Talent.LIGHT_CLOAK)/3f);
+		}
+
+		return bonus;
+	}
+
+	public static float armorChargeMultiplier( Char target ){
+		return (float)Math.pow(1.15, getBuffedBonus(target, Energy.class));
 	}
 	
 	public class Energy extends RingBuff {

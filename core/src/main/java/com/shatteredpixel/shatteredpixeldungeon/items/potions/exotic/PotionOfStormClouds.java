@@ -3,7 +3,7 @@
  * Copyright (C) 2012-2015 Oleg Dolya
  *
  * Shattered Pixel Dungeon
- * Copyright (C) 2014-2019 Evan Debenham
+ * Copyright (C) 2014-2023 Evan Debenham
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -26,24 +26,36 @@ import com.shatteredpixel.shatteredpixeldungeon.Dungeon;
 import com.shatteredpixel.shatteredpixeldungeon.actors.blobs.Blob;
 import com.shatteredpixel.shatteredpixeldungeon.actors.blobs.StormCloud;
 import com.shatteredpixel.shatteredpixeldungeon.scenes.GameScene;
+import com.shatteredpixel.shatteredpixeldungeon.sprites.ItemSpriteSheet;
 import com.watabou.noosa.audio.Sample;
+import com.watabou.utils.PathFinder;
 
 public class PotionOfStormClouds extends ExoticPotion {
 	
 	{
-		initials = 5;
+		icon = ItemSpriteSheet.Icons.POTION_STRMCLOUD;
 	}
 	
 	@Override
 	public void shatter(int cell) {
 		
 		if (Dungeon.level.heroFOV[cell]) {
-			setKnown();
+			identify();
 			
 			splash( cell );
-			Sample.INSTANCE.play( Assets.SND_SHATTER );
+			Sample.INSTANCE.play( Assets.Sounds.SHATTER );
+			Sample.INSTANCE.play( Assets.Sounds.GAS );
+		}
+
+		int centerVolume = 120;
+		for (int i : PathFinder.NEIGHBOURS8){
+			if (!Dungeon.level.solid[cell+i]){
+				GameScene.add( Blob.seed( cell+i, 120, StormCloud.class ) );
+			} else {
+				centerVolume += 120;
+			}
 		}
 		
-		GameScene.add( Blob.seed( cell, 1000, StormCloud.class ) );
+		GameScene.add( Blob.seed( cell, centerVolume, StormCloud.class ) );
 	}
 }

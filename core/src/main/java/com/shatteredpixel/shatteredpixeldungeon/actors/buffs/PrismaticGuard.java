@@ -3,7 +3,7 @@
  * Copyright (C) 2012-2015 Oleg Dolya
  *
  * Shattered Pixel Dungeon
- * Copyright (C) 2014-2019 Evan Debenham
+ * Copyright (C) 2014-2023 Evan Debenham
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -86,7 +86,7 @@ public class PrismaticGuard extends Buff {
 		}
 		
 		LockedFloor lock = target.buff(LockedFloor.class);
-		if (HP < maxHP() && (lock == null || lock.regenOn())){
+		if (HP < maxHP() && Regeneration.regenOn()){
 			HP += 0.1f;
 		}
 		
@@ -102,7 +102,7 @@ public class PrismaticGuard extends Buff {
 	}
 	
 	public static int maxHP( Hero hero ){
-		return 8 + (int)Math.floor(hero.lvl * 2.5f);
+		return 10 + (int)Math.floor(hero.lvl * 2.5f); //half of hero's HP
 	}
 	
 	@Override
@@ -112,12 +112,17 @@ public class PrismaticGuard extends Buff {
 	
 	@Override
 	public void tintIcon(Image icon) {
-		icon.tint(0.5f, 0.5f, 1, 0.5f);
+		icon.hardlight(1f, 1f, 2f);
 	}
-	
+
 	@Override
-	public String toString() {
-		return Messages.get(this, "name");
+	public float iconFadePercent() {
+		return 1f - HP/(float)maxHP();
+	}
+
+	@Override
+	public String iconTextDisplay() {
+		return Integer.toString((int)HP);
 	}
 	
 	@Override

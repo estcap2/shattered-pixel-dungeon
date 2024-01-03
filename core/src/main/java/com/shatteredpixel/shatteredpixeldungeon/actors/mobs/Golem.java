@@ -3,7 +3,7 @@
  * Copyright (C) 2012-2015 Oleg Dolya
  *
  * Shattered Pixel Dungeon
- * Copyright (C) 2014-2019 Evan Debenham
+ * Copyright (C) 2014-2023 Evan Debenham
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -27,8 +27,12 @@ import com.shatteredpixel.shatteredpixeldungeon.actors.Char;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.MagicImmune;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.Hero;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.npcs.Imp;
+import com.shatteredpixel.shatteredpixeldungeon.items.Generator;
+import com.shatteredpixel.shatteredpixeldungeon.items.Item;
 import com.shatteredpixel.shatteredpixeldungeon.items.scrolls.ScrollOfTeleportation;
+import com.shatteredpixel.shatteredpixeldungeon.scenes.GameScene;
 import com.shatteredpixel.shatteredpixeldungeon.sprites.GolemSprite;
+import com.watabou.utils.BArray;
 import com.watabou.utils.Bundle;
 import com.watabou.utils.PathFinder;
 import com.watabou.utils.Random;
@@ -38,12 +42,15 @@ public class Golem extends Mob {
 	{
 		spriteClass = GolemSprite.class;
 		
-		HP = HT = 100;
-		defenseSkill = 12;
+		HP = HT = 120;
+		defenseSkill = 15;
 		
 		EXP = 12;
 		maxLvl = 22;
-		
+
+		loot = Random.oneOf(Generator.Category.WEAPON, Generator.Category.ARMOR);
+		lootChance = 0.125f; //initially, see lootChance()
+
 		properties.add(Property.INORGANIC);
 		properties.add(Property.LARGE);
 
@@ -53,7 +60,7 @@ public class Golem extends Mob {
 
 	@Override
 	public int damageRoll() {
-		return Random.NormalIntRange( 15, 35 );
+		return Random.NormalIntRange( 25, 30 );
 	}
 	
 	@Override
@@ -63,23 +70,39 @@ public class Golem extends Mob {
 	
 	@Override
 	public int drRoll() {
-		return Random.NormalIntRange(0, 12);
+		return super.drRoll() + Random.NormalIntRange(0, 12);
 	}
-	
+
+	@Override
+	public float lootChance() {
+		//each drop makes future drops 1/2 as likely
+		// so loot chance looks like: 1/8, 1/16, 1/32, 1/64, etc.
+		return super.lootChance() * (float)Math.pow(1/2f, Dungeon.LimitedDrops.GOLEM_EQUIP.count);
+	}
+
 	@Override
 	public void rollToDropLoot() {
 		Imp.Quest.process( this );
-		
 		super.rollToDropLoot();
+	}
+
+	public Item createLoot() {
+		Dungeon.LimitedDrops.GOLEM_EQUIP.count++;
+		//uses probability tables for demon halls
+		if (loot == Generator.Category.WEAPON){
+			return Generator.randomWeapon(5, true);
+		} else {
+			return Generator.randomArmor(5);
+		}
 	}
 
 	private boolean teleporting = false;
 	private int selfTeleCooldown = 0;
 	private int enemyTeleCooldown = 0;
 
-	private static final String TELEPORTING = "vent_cooldown";
+	private static final String TELEPORTING = "teleporting";
 	private static final String SELF_COOLDOWN = "self_cooldown";
-	private static final String ENEMY_COOLDOWN = "vent_cooldown";
+	private static final String ENEMY_COOLDOWN = "enemy_cooldown";
 
 	@Override
 	public void storeInBundle(Bundle bundle) {
@@ -142,10 +165,21 @@ public class Golem extends Mob {
 			if (enemy instanceof Hero){
 				((Hero) enemy).interrupt();
 				Dungeon.observe();
+				GameScene.updateFog();
 			}
 		}
 
 		enemyTeleCooldown = 20;
+	}
+
+	private boolean canTele(int target){
+		if (enemyTeleCooldown > 0) return false;
+		PathFinder.buildDistanceMap(target, BArray.not(Dungeon.level.solid, null), Dungeon.level.distance(pos, target)+1);
+		//zaps can go around blocking terrain, but not through it
+		if (PathFinder.distance[pos] == Integer.MAX_VALUE){
+			return false;
+		}
+		return true;
 	}
 
 	private class Wandering extends Mob.Wandering{
@@ -158,12 +192,12 @@ public class Golem extends Mob {
 			if (target != -1 && getCloser( target )) {
 				spend( 1 / speed() );
 				return moveSprite( oldPos, pos );
-			} else if (target != -1 && target != pos && selfTeleCooldown <= 0) {
+			} else if (!Dungeon.bossLevel() && target != -1 && target != pos && selfTeleCooldown <= 0) {
 				((GolemSprite)sprite).teleParticles(true);
 				teleporting = true;
 				spend( 2*TICK );
 			} else {
-				target = Dungeon.level.randomDestination( Golem.this );
+				target = randomDestination();
 				spend( TICK );
 			}
 
@@ -183,7 +217,8 @@ public class Golem extends Mob {
 
 				int oldPos = pos;
 
-				if (enemyTeleCooldown <= 0 && Random.Int(100/distance(enemy)) == 0){
+				if (distance(enemy) >= 1 && Random.Int(100/distance(enemy)) == 0
+						&& !Char.hasProp(enemy, Property.IMMOVABLE) && canTele(target)){
 					if (sprite != null && (sprite.visible || enemy.sprite.visible)) {
 						sprite.zap( enemy.pos );
 						return false;
@@ -196,7 +231,7 @@ public class Golem extends Mob {
 					spend( 1 / speed() );
 					return moveSprite( oldPos,  pos );
 
-				} else if (enemyTeleCooldown <= 0) {
+				} else if (!Char.hasProp(enemy, Property.IMMOVABLE) && canTele(target)) {
 					if (sprite != null && (sprite.visible || enemy.sprite.visible)) {
 						sprite.zap( enemy.pos );
 						return false;

@@ -3,7 +3,7 @@
  * Copyright (C) 2012-2015 Oleg Dolya
  *
  * Shattered Pixel Dungeon
- * Copyright (C) 2014-2019 Evan Debenham
+ * Copyright (C) 2014-2023 Evan Debenham
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -21,9 +21,13 @@
 
 package com.shatteredpixel.shatteredpixeldungeon.levels;
 
+import com.shatteredpixel.shatteredpixeldungeon.Assets;
 import com.shatteredpixel.shatteredpixeldungeon.Bones;
+import com.shatteredpixel.shatteredpixeldungeon.Statistics;
 import com.shatteredpixel.shatteredpixeldungeon.actors.Actor;
 import com.shatteredpixel.shatteredpixeldungeon.actors.Char;
+import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Goo;
+import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Mob;
 import com.shatteredpixel.shatteredpixeldungeon.items.Heap;
 import com.shatteredpixel.shatteredpixeldungeon.items.Item;
 import com.shatteredpixel.shatteredpixeldungeon.levels.builders.Builder;
@@ -37,8 +41,12 @@ import com.shatteredpixel.shatteredpixeldungeon.levels.rooms.sewerboss.SewerBoss
 import com.shatteredpixel.shatteredpixeldungeon.levels.rooms.sewerboss.SewerBossExitRoom;
 import com.shatteredpixel.shatteredpixeldungeon.levels.rooms.standard.StandardRoom;
 import com.shatteredpixel.shatteredpixeldungeon.scenes.GameScene;
+import com.watabou.noosa.Game;
 import com.watabou.noosa.Group;
+import com.watabou.noosa.audio.Music;
 import com.watabou.utils.Bundle;
+import com.watabou.utils.Callback;
+import com.watabou.utils.Point;
 import com.watabou.utils.Random;
 
 import java.util.ArrayList;
@@ -50,8 +58,29 @@ public class SewerBossLevel extends SewerLevel {
 		color2 = 0x59994a;
 	}
 	
-	private int stairs = 0;
-	
+	@Override
+	public void playLevelMusic() {
+		if (locked){
+			Music.INSTANCE.play(Assets.Music.SEWERS_BOSS, true);
+			return;
+		}
+
+		boolean gooAlive = false;
+		for (Mob m : mobs){
+			if (m instanceof Goo) {
+				gooAlive = true;
+				break;
+			}
+		}
+
+		if (gooAlive){
+			Music.INSTANCE.end();
+		} else {
+			Music.INSTANCE.playTracks(SewerLevel.SEWER_TRACK_LIST, SewerLevel.SEWER_TRACK_CHANCES, false);
+		}
+
+	}
+
 	@Override
 	protected ArrayList<Room> initRooms() {
 		ArrayList<Room> initRooms = new ArrayList<>();
@@ -59,7 +88,7 @@ public class SewerBossLevel extends SewerLevel {
 		initRooms.add( roomEntrance = new SewerBossEntranceRoom() );
 		initRooms.add( roomExit = new SewerBossExitRoom() );
 		
-		int standards = standardRooms();
+		int standards = standardRooms(true);
 		for (int i = 0; i < standards; i++) {
 			StandardRoom s = StandardRoom.createRoom();
 			//force to normal size
@@ -75,14 +104,15 @@ public class SewerBossLevel extends SewerLevel {
 	}
 	
 	@Override
-	protected int standardRooms() {
+	protected int standardRooms(boolean forceMax) {
+		if (forceMax) return 3;
 		//2 to 3, average 2.5
 		return 2+Random.chances(new float[]{1, 1});
 	}
 	
 	protected Builder builder(){
 		return new FigureEightBuilder()
-				.setLoopShape( 2 , Random.Float(0.4f, 0.7f), Random.Float(0f, 0.5f))
+				.setLoopShape( 2 , Random.Float(0.3f, 0.8f), 0f)
 				.setPathLength(1f, new float[]{1})
 				.setTunnelLength(new float[]{1, 2}, new float[]{1});
 	}
@@ -103,7 +133,7 @@ public class SewerBossLevel extends SewerLevel {
 	protected void createMobs() {
 	}
 	
-	public Actor respawner() {
+	public Actor addRespawner() {
 		return null;
 	}
 	
@@ -114,72 +144,90 @@ public class SewerBossLevel extends SewerLevel {
 			int pos;
 			do {
 				pos = pointToCell(roomEntrance.random());
-			} while (pos == entrance || solid[pos]);
+			} while (pos == entrance() || solid[pos]);
 			drop( item, pos ).setHauntedIfCursed().type = Heap.Type.REMAINS;
 		}
 	}
 
 	@Override
 	public int randomRespawnCell( Char ch ) {
-		int pos;
-		do {
-			pos = pointToCell(roomEntrance.random());
-		} while (pos == entrance
-				|| !passable[pos]
-				|| (Char.hasProp(ch, Char.Property.LARGE) && !openSpace[pos])
-				|| Actor.findChar(pos) != null);
-		return pos;
+		ArrayList<Integer> candidates = new ArrayList<>();
+		for (Point p : roomEntrance.getPoints()){
+			int cell = pointToCell(p);
+			if (passable[cell]
+					&& roomEntrance.inside(p)
+					&& Actor.findChar(cell) == null
+					&& (!Char.hasProp(ch, Char.Property.LARGE) || openSpace[cell])){
+				candidates.add(cell);
+			}
+		}
+
+		if (candidates.isEmpty()){
+			return -1;
+		} else {
+			return Random.element(candidates);
+		}
 	}
 
 	
 	public void seal() {
-		if (entrance != 0) {
+		if (!locked) {
 
 			super.seal();
-			
-			set( entrance, Terrain.WATER );
-			GameScene.updateMap( entrance );
-			GameScene.ripple( entrance );
-			
-			stairs = entrance;
-			entrance = 0;
+
+			Statistics.qualifiedForBossChallengeBadge = true;
+
+			set( entrance(), Terrain.WATER );
+			GameScene.updateMap( entrance() );
+			GameScene.ripple( entrance() );
+
+			Game.runOnRenderThread(new Callback() {
+				@Override
+				public void call() {
+					Music.INSTANCE.play(Assets.Music.SEWERS_BOSS, true);
+				}
+			});
 		}
 	}
 	
 	public void unseal() {
-		if (stairs != 0) {
+		if (locked) {
 
 			super.unseal();
-			
-			entrance = stairs;
-			stairs = 0;
-			
-			set( entrance, Terrain.ENTRANCE );
-			GameScene.updateMap( entrance );
 
+			set( entrance(), Terrain.ENTRANCE );
+			GameScene.updateMap( entrance() );
+
+			Game.runOnRenderThread(new Callback() {
+				@Override
+				public void call() {
+					Music.INSTANCE.fadeOut(5f, new Callback() {
+						@Override
+						public void call() {
+							Music.INSTANCE.end();
+						}
+					});
+				}
+			});
 		}
 	}
 	
 	@Override
 	public Group addVisuals() {
 		super.addVisuals();
-		if (map[exit-1] != Terrain.WALL_DECO) visuals.add(new PrisonLevel.Torch(exit-1));
-		if (map[exit+1] != Terrain.WALL_DECO) visuals.add(new PrisonLevel.Torch(exit+1));
+		if (map[exit()-1] != Terrain.WALL_DECO) visuals.add(new PrisonLevel.Torch(exit()-1));
+		if (map[exit()+1] != Terrain.WALL_DECO) visuals.add(new PrisonLevel.Torch(exit()+1));
 		return visuals;
-	}
-	
-	private static final String STAIRS	= "stairs";
-	
-	@Override
-	public void storeInBundle( Bundle bundle ) {
-		super.storeInBundle( bundle );
-		bundle.put( STAIRS, stairs );
 	}
 	
 	@Override
 	public void restoreFromBundle( Bundle bundle ) {
+		//pre-1.3.0 saves
+		if (bundle.getInt("stairs") != 0){
+			bundle.put("entrance", bundle.getInt("stairs"));
+			bundle.remove("stairs");
+		}
 		super.restoreFromBundle( bundle );
-		stairs = bundle.getInt( STAIRS );
 		roomExit = roomEntrance;
 	}
 }

@@ -3,7 +3,7 @@
  * Copyright (C) 2012-2015 Oleg Dolya
  *
  * Shattered Pixel Dungeon
- * Copyright (C) 2014-2019 Evan Debenham
+ * Copyright (C) 2014-2023 Evan Debenham
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -22,6 +22,7 @@
 package com.shatteredpixel.shatteredpixeldungeon.items.weapon.missiles;
 
 import com.shatteredpixel.shatteredpixeldungeon.Assets;
+import com.shatteredpixel.shatteredpixeldungeon.Badges;
 import com.shatteredpixel.shatteredpixeldungeon.Dungeon;
 import com.shatteredpixel.shatteredpixeldungeon.actors.Actor;
 import com.shatteredpixel.shatteredpixeldungeon.actors.Char;
@@ -45,7 +46,12 @@ public class ForceCube extends MissileWeapon {
 		
 		sticky = false;
 	}
-	
+
+	@Override
+	public void hitSound(float pitch) {
+		//no hitsound as it never hits enemies directly
+	}
+
 	@Override
 	protected void onThrow(int cell) {
 		if (Dungeon.level.pit[cell]){
@@ -53,6 +59,7 @@ public class ForceCube extends MissileWeapon {
 			return;
 		}
 
+		rangedHit( null, cell );
 		Dungeon.level.pressCell(cell);
 		
 		ArrayList<Char> targets = new ArrayList<>();
@@ -66,14 +73,13 @@ public class ForceCube extends MissileWeapon {
 		for (Char target : targets){
 			curUser.shoot(target, this);
 			if (target == Dungeon.hero && !target.isAlive()){
-				Dungeon.fail(getClass());
+				Badges.validateDeathFromFriendlyMagic();
+				Dungeon.fail(this);
 				GLog.n(Messages.get(this, "ondeath"));
 			}
 		}
 		
-		rangedHit( null, cell );
-		
 		WandOfBlastWave.BlastWave.blast(cell);
-		Sample.INSTANCE.play( Assets.SND_BLAST );
+		Sample.INSTANCE.play( Assets.Sounds.BLAST );
 	}
 }

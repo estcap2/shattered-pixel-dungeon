@@ -3,7 +3,7 @@
  * Copyright (C) 2012-2015 Oleg Dolya
  *
  * Shattered Pixel Dungeon
- * Copyright (C) 2014-2019 Evan Debenham
+ * Copyright (C) 2014-2023 Evan Debenham
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -35,8 +35,13 @@ public class Sacrificial extends Weapon.Enchantment {
 	@Override
 	public int proc(Weapon weapon, Char attacker, Char defender, int damage ) {
 
-		if (Random.Int(12) == 0){
-			Buff.affect(attacker, Bleeding.class).set(Math.max(1, attacker.HP/6));
+		float procChance = 1/10f * procChanceMultiplier(attacker);
+		if (Random.Float() < procChance) {
+			float missingPercent = attacker.HP/(float)attacker.HT;
+			float bleedAmt = (float)(Math.pow(missingPercent, 2) * attacker.HT)/8f;
+			if (Random.Float() < bleedAmt) {
+				Buff.affect(attacker, Bleeding.class).set(Math.max(1, bleedAmt), getClass());
+			}
 		}
 
 		return damage;

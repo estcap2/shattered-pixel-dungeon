@@ -3,7 +3,7 @@
  * Copyright (C) 2012-2015 Oleg Dolya
  *
  * Shattered Pixel Dungeon
- * Copyright (C) 2014-2019 Evan Debenham
+ * Copyright (C) 2014-2023 Evan Debenham
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -22,7 +22,9 @@
 package com.shatteredpixel.shatteredpixeldungeon.items.artifacts;
 
 import com.shatteredpixel.shatteredpixeldungeon.Assets;
+import com.shatteredpixel.shatteredpixeldungeon.Badges;
 import com.shatteredpixel.shatteredpixeldungeon.Dungeon;
+import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.MagicImmune;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.Hero;
 import com.shatteredpixel.shatteredpixeldungeon.effects.particles.ShadowParticle;
 import com.shatteredpixel.shatteredpixeldungeon.items.Item;
@@ -30,11 +32,13 @@ import com.shatteredpixel.shatteredpixeldungeon.items.wands.WandOfLivingEarth;
 import com.shatteredpixel.shatteredpixeldungeon.messages.Messages;
 import com.shatteredpixel.shatteredpixeldungeon.plants.Earthroot;
 import com.shatteredpixel.shatteredpixeldungeon.scenes.GameScene;
+import com.shatteredpixel.shatteredpixeldungeon.sprites.ItemSprite;
 import com.shatteredpixel.shatteredpixeldungeon.sprites.ItemSpriteSheet;
 import com.shatteredpixel.shatteredpixeldungeon.utils.GLog;
 import com.shatteredpixel.shatteredpixeldungeon.windows.WndOptions;
 import com.watabou.noosa.audio.Sample;
 import com.watabou.utils.Bundle;
+import com.watabou.utils.Random;
 
 import java.util.ArrayList;
 
@@ -51,7 +55,11 @@ public class ChaliceOfBlood extends Artifact {
 	@Override
 	public ArrayList<String> actions( Hero hero ) {
 		ArrayList<String> actions = super.actions( hero );
-		if (isEquipped( hero ) && level() < levelCap && !cursed)
+		if (isEquipped( hero )
+				&& level() < levelCap
+				&& !cursed
+				&& !hero.isInvulnerable(getClass())
+				&& hero.buff(MagicImmune.class) == null)
 			actions.add(AC_PRICK);
 		return actions;
 	}
@@ -62,12 +70,13 @@ public class ChaliceOfBlood extends Artifact {
 
 		if (action.equals(AC_PRICK)){
 
-			int damage = 3*(level()*level());
+			int damage = 5 + 3*(level()*level());
 
 			if (damage > hero.HP*0.75) {
 
 				GameScene.show(
-					new WndOptions(Messages.titleCase(Messages.get(this, "name")),
+					new WndOptions(new ItemSprite(this),
+							Messages.titleCase(name()),
 							Messages.get(this, "prick_warn"),
 							Messages.get(this, "yes"),
 							Messages.get(this, "no")) {
@@ -86,7 +95,7 @@ public class ChaliceOfBlood extends Artifact {
 	}
 
 	private void prick(Hero hero){
-		int damage = 3*(level()*level());
+		int damage = 5 + 3*(level()*level());
 
 		Earthroot.Armor armor = hero.buff(Earthroot.Armor.class);
 		if (armor != null) {
@@ -107,14 +116,15 @@ public class ChaliceOfBlood extends Artifact {
 		if (damage <= 0){
 			damage = 1;
 		} else {
-			Sample.INSTANCE.play(Assets.SND_CURSED);
+			Sample.INSTANCE.play(Assets.Sounds.CURSED);
 			hero.sprite.emitter().burst( ShadowParticle.CURSE, 4+(damage/10) );
 		}
 
 		hero.damage(damage, this);
 
 		if (!hero.isAlive()) {
-			Dungeon.fail( getClass() );
+			Badges.validateDeathFromFriendlyMagic();
+			Dungeon.fail( this );
 			GLog.n( Messages.get(this, "ondeath") );
 		} else {
 			upgrade();
@@ -143,8 +153,22 @@ public class ChaliceOfBlood extends Artifact {
 	}
 	
 	@Override
-	public void charge(Hero target) {
-		target.HP = Math.min( target.HT, target.HP + 1 + Dungeon.depth/5);
+	public void charge(Hero target, float amount) {
+		if (cursed || target.buff(MagicImmune.class) != null) return;
+
+		//grants 5 turns of healing up-front, if hero isn't starving
+		if (target.isStarving()) return;
+
+		float healDelay = 10f - (1.33f + level()*0.667f);
+		healDelay /= amount;
+		float heal = 5f/healDelay;
+		//effectively 0.5/1/1.5/2/2.5 HP per turn at +0/+6/+8/+9/+10
+		if (Random.Float() < heal%1){
+			heal++;
+		}
+		if (heal >= 1f) {
+			target.HP = Math.min(target.HT, target.HP + (int)heal);
+		}
 	}
 	
 	@Override
@@ -167,7 +191,7 @@ public class ChaliceOfBlood extends Artifact {
 	}
 
 	public class chaliceRegen extends ArtifactBuff {
-
+		//see Regeneration.class for effect
 	}
 
 }

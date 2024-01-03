@@ -3,7 +3,7 @@
  * Copyright (C) 2012-2015 Oleg Dolya
  *
  * Shattered Pixel Dungeon
- * Copyright (C) 2014-2019 Evan Debenham
+ * Copyright (C) 2014-2023 Evan Debenham
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -32,6 +32,7 @@ import com.shatteredpixel.shatteredpixeldungeon.effects.Pushing;
 import com.shatteredpixel.shatteredpixeldungeon.effects.TargetedCell;
 import com.shatteredpixel.shatteredpixeldungeon.mechanics.Ballistica;
 import com.shatteredpixel.shatteredpixeldungeon.messages.Messages;
+import com.shatteredpixel.shatteredpixeldungeon.sprites.CharSprite;
 import com.shatteredpixel.shatteredpixeldungeon.sprites.RipperSprite;
 import com.shatteredpixel.shatteredpixeldungeon.utils.GLog;
 import com.watabou.noosa.audio.Sample;
@@ -77,33 +78,33 @@ public class RipperDemon extends Mob {
 	}
 
 	@Override
-	protected float attackDelay() {
+	public float attackDelay() {
 		return super.attackDelay()*0.5f;
 	}
 
 	@Override
 	public int drRoll() {
-		return Random.NormalIntRange(0, 4);
+		return super.drRoll() + Random.NormalIntRange(0, 4);
 	}
 
 	private static final String LAST_ENEMY_POS = "last_enemy_pos";
 	private static final String LEAP_POS = "leap_pos";
+	private static final String LEAP_CD = "leap_cd";
 
 	@Override
 	public void storeInBundle(Bundle bundle) {
 		super.storeInBundle(bundle);
 		bundle.put(LAST_ENEMY_POS, lastEnemyPos);
 		bundle.put(LEAP_POS, leapPos);
+		bundle.put(LEAP_CD, leapCooldown);
 	}
 
 	@Override
 	public void restoreFromBundle(Bundle bundle) {
 		super.restoreFromBundle(bundle);
-		//pre beta-5.0
-		if (bundle.contains(LAST_ENEMY_POS)) {
-			lastEnemyPos = bundle.getInt(LAST_ENEMY_POS);
-			leapPos = bundle.getInt(LEAP_POS);
-		}
+		lastEnemyPos = bundle.getInt(LAST_ENEMY_POS);
+		leapPos = bundle.getInt(LEAP_POS);
+		leapCooldown = bundle.getFloat(LEAP_CD);
 	}
 
 	private int lastEnemyPos = -1;
@@ -112,6 +113,7 @@ public class RipperDemon extends Mob {
 	protected boolean act() {
 		AiState lastState = state;
 		boolean result = super.act();
+		if (paralysed <= 0) leapCooldown --;
 
 		//if state changed from wandering to hunting, we haven't acted yet, don't update.
 		if (!(lastState == WANDERING && state == HUNTING)) {
@@ -126,6 +128,7 @@ public class RipperDemon extends Mob {
 	}
 
 	private int leapPos = -1;
+	private float leapCooldown = 0;
 
 	public class Hunting extends Mob.Hunting {
 
@@ -133,37 +136,61 @@ public class RipperDemon extends Mob {
 		public boolean act( boolean enemyInFOV, boolean justAlerted ) {
 
 			if (leapPos != -1){
+
+				leapCooldown = Random.NormalIntRange(2, 4);
+
+				if (rooted){
+					leapPos = -1;
+					return true;
+				}
+
+				Ballistica b = new Ballistica(pos, leapPos, Ballistica.STOP_TARGET | Ballistica.STOP_SOLID);
+				leapPos = b.collisionPos;
+
+				final Char leapVictim = Actor.findChar(leapPos);
+				final int endPos;
+
+				//ensure there is somewhere to land after leaping
+				if (leapVictim != null){
+					int bouncepos = -1;
+					for (int i : PathFinder.NEIGHBOURS8){
+						if ((bouncepos == -1 || Dungeon.level.trueDistance(pos, leapPos+i) < Dungeon.level.trueDistance(pos, bouncepos))
+								&& Actor.findChar(leapPos+i) == null && Dungeon.level.passable[leapPos+i]){
+							bouncepos = leapPos+i;
+						}
+					}
+					if (bouncepos == -1) {
+						leapPos = -1;
+						return true;
+					} else {
+						endPos = bouncepos;
+					}
+				} else {
+					endPos = leapPos;
+				}
+
 				//do leap
-				sprite.visible = Dungeon.level.heroFOV[pos] || Dungeon.level.heroFOV[leapPos];
+				sprite.visible = Dungeon.level.heroFOV[pos] || Dungeon.level.heroFOV[leapPos] || Dungeon.level.heroFOV[endPos];
 				sprite.jump(pos, leapPos, new Callback() {
 					@Override
 					public void call() {
 
-						Char ch = Actor.findChar(leapPos);
-						if (ch != null){
-							if (alignment != ch.alignment){
-								Buff.affect(ch, Bleeding.class).set(0.75f*Math.max(damageRoll(), damageRoll()));
-								ch.sprite.flash();
-								Sample.INSTANCE.play(Assets.SND_HIT);
-							}
-							//bounce to a random safe pos(if possible)
-							int bouncepos = -1;
-							for (int i : PathFinder.NEIGHBOURS8){
-								if ((bouncepos == -1 || Dungeon.level.trueDistance(pos, leapPos+i) < Dungeon.level.trueDistance(pos, bouncepos))
-										&& Actor.findChar(leapPos+i) == null && Dungeon.level.passable[leapPos+i]){
-									bouncepos = leapPos+i;
-								}
-							}
-							if (bouncepos != -1) {
-								pos = bouncepos;
-								Actor.addDelayed(new Pushing(RipperDemon.this, leapPos, bouncepos), -1);
+						if (leapVictim != null && alignment != leapVictim.alignment){
+							if (hit(RipperDemon.this, leapVictim, Char.INFINITE_ACCURACY, false)) {
+								Buff.affect(leapVictim, Bleeding.class).set(0.75f * damageRoll());
+								leapVictim.sprite.flash();
+								Sample.INSTANCE.play(Assets.Sounds.HIT);
 							} else {
-								pos = leapPos;
+								enemy.sprite.showStatus( CharSprite.NEUTRAL, enemy.defenseVerb() );
+								Sample.INSTANCE.play(Assets.Sounds.MISS);
 							}
-						} else {
-							pos = leapPos;
 						}
 
+						if (endPos != leapPos){
+							Actor.add(new Pushing(RipperDemon.this, leapPos, endPos));
+						}
+
+						pos = endPos;
 						leapPos = -1;
 						sprite.idle();
 						Dungeon.level.occupyCell(RipperDemon.this);
@@ -188,7 +215,8 @@ public class RipperDemon extends Mob {
 					return true;
 				}
 
-				if (enemyInFOV && Dungeon.level.distance(pos, enemy.pos) >= 3) {
+				if (leapCooldown <= 0 && enemyInFOV && !rooted
+						&& Dungeon.level.distance(pos, enemy.pos) >= 3) {
 
 					int targetPos = enemy.pos;
 					if (lastEnemyPos != enemy.pos){
@@ -202,11 +230,11 @@ public class RipperDemon extends Mob {
 						targetPos = enemy.pos + PathFinder.CIRCLE8[(closestIdx+4)%8];
 					}
 
-					Ballistica b = new Ballistica(pos, targetPos, Ballistica.STOP_TARGET | Ballistica.STOP_TERRAIN);
+					Ballistica b = new Ballistica(pos, targetPos, Ballistica.STOP_TARGET | Ballistica.STOP_SOLID);
 					//try aiming directly at hero if aiming near them doesn't work
 					if (b.collisionPos != targetPos && targetPos != enemy.pos){
 						targetPos = enemy.pos;
-						b = new Ballistica(pos, targetPos, Ballistica.STOP_TARGET | Ballistica.STOP_TERRAIN);
+						b = new Ballistica(pos, targetPos, Ballistica.STOP_TARGET | Ballistica.STOP_SOLID);
 					}
 					if (b.collisionPos == targetPos){
 						//get ready to leap

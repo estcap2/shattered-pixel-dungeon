@@ -3,7 +3,7 @@
  * Copyright (C) 2012-2015 Oleg Dolya
  *
  * Shattered Pixel Dungeon
- * Copyright (C) 2014-2019 Evan Debenham
+ * Copyright (C) 2014-2023 Evan Debenham
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -32,17 +32,20 @@ import com.shatteredpixel.shatteredpixeldungeon.sprites.CharSprite;
 import com.shatteredpixel.shatteredpixeldungeon.sprites.ItemSpriteSheet;
 import com.shatteredpixel.shatteredpixeldungeon.ui.BuffIndicator;
 import com.shatteredpixel.shatteredpixeldungeon.utils.GLog;
+import com.watabou.noosa.Image;
 import com.watabou.utils.Bundle;
 
 public class ElixirOfMight extends Elixir {
 
 	{
 		image = ItemSpriteSheet.ELIXIR_MIGHT;
+
+		unique = true;
 	}
 	
 	@Override
 	public void apply( Hero hero ) {
-		setKnown();
+		identify();
 		
 		hero.STR++;
 		
@@ -55,6 +58,7 @@ public class ElixirOfMight extends Elixir {
 		GLog.p( Messages.get(this, "msg_2") );
 
 		Badges.validateStrengthAttained();
+		Badges.validateDuelistUnlock();
 	}
 	
 	public String desc() {
@@ -62,7 +66,7 @@ public class ElixirOfMight extends Elixir {
 	}
 	
 	@Override
-	public int price() {
+	public int value() {
 		//prices of ingredients
 		return quantity * (50 + 40);
 	}
@@ -73,7 +77,7 @@ public class ElixirOfMight extends Elixir {
 			inputs =  new Class[]{PotionOfStrength.class, AlchemicalCatalyst.class};
 			inQuantity = new int[]{1, 1};
 			
-			cost = 5;
+			cost = 6;
 			
 			output = ElixirOfMight.class;
 			outQuantity = 1;
@@ -94,7 +98,7 @@ public class ElixirOfMight extends Elixir {
 		}
 		
 		public int boost(){
-			return Math.round(left*boost(target.HT)/5f);
+			return Math.round(left*boost(15 + 5*((Hero)target).lvl)/5f);
 		}
 		
 		public static int boost(int HT){
@@ -112,10 +116,20 @@ public class ElixirOfMight extends Elixir {
 		public int icon() {
 			return BuffIndicator.HEALING;
 		}
-		
+
 		@Override
-		public String toString() {
-			return Messages.get(this, "name");
+		public void tintIcon(Image icon) {
+			icon.hardlight(1f, 0.5f, 0f);
+		}
+
+		@Override
+		public float iconFadePercent() {
+			return (5f - left) / 5f;
+		}
+
+		@Override
+		public String iconTextDisplay() {
+			return Integer.toString(left);
 		}
 		
 		@Override

@@ -1,10 +1,11 @@
 buildscript {
     repositories {
         google()
-        jcenter()
+        mavenCentral()
     }
     dependencies {
-        classpath 'com.android.tools.build:gradle:3.6.2'
+        //the R8 version bundled with AGP 8.1.0+ causes crashes on very old Android versions
+        classpath 'com.android.tools.build:gradle:8.0.2'
     }
 }
 
@@ -14,22 +15,25 @@ allprojects {
         appName = 'Shattered Pixel Dungeon'
         appPackageName = 'com.shatteredpixel.shatteredpixeldungeon'
 
-        appVersionCode = 412
-        appVersionName = '0.8.0'
+        appVersionCode = 754
+        appVersionName = '2.2.1'
 
-        appJavaCompatibility = 1.8
+        appJavaCompatibility = JavaVersion.VERSION_1_8
 
-        appAndroidCompileSDK = 29
-        appAndroidMinSDK = 9
-        appAndroidTargetSDK = 29
+        appAndroidCompileSDK = 33
+        appAndroidMinSDK = 14
+        appAndroidTargetSDK = 33
 
-        gdxVersion = '1.9.10'
+        gdxVersion = '1.11.0'
+        gdxControllersVersion = '2.2.4-SNAPSHOT'
+        robovmVersion = '2.3.19'
     }
     version = appVersionName
 
     repositories {
         google()
-        jcenter()
+        mavenCentral()
+        maven { url 'https://oss.sonatype.org/content/repositories/snapshots' }
     }
 
 }

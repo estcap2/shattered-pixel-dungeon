@@ -3,7 +3,7 @@
  * Copyright (C) 2012-2015 Oleg Dolya
  *
  * Shattered Pixel Dungeon
- * Copyright (C) 2014-2019 Evan Debenham
+ * Copyright (C) 2014-2023 Evan Debenham
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -38,7 +38,8 @@ public abstract class Key extends Item {
 		stackable = true;
 		unique = true;
 	}
-	
+
+	//TODO currently keys can only appear on branch = 0, add branch support here if that changes
 	public int depth;
 	
 	@Override
@@ -47,11 +48,11 @@ public abstract class Key extends Item {
 	}
 
 	@Override
-	public boolean doPickUp(Hero hero) {
-		GameScene.pickUpJournal(this, hero.pos);
+	public boolean doPickUp(Hero hero, int pos) {
+		GameScene.pickUpJournal(this, pos);
 		WndJournal.last_index = 2;
 		Notes.add(this);
-		Sample.INSTANCE.play( Assets.SND_ITEM );
+		Sample.INSTANCE.play( Assets.Sounds.ITEM );
 		hero.spendAndNext( TIME_TO_PICK_UP );
 		GameScene.updateKeyDisplay();
 		return true;

@@ -3,7 +3,7 @@
  * Copyright (C) 2012-2015 Oleg Dolya
  *
  * Shattered Pixel Dungeon
- * Copyright (C) 2014-2019 Evan Debenham
+ * Copyright (C) 2014-2023 Evan Debenham
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -21,9 +21,11 @@
 
 package com.shatteredpixel.shatteredpixeldungeon.effects;
 
+import com.shatteredpixel.shatteredpixeldungeon.Dungeon;
 import com.shatteredpixel.shatteredpixeldungeon.actors.Actor;
 import com.shatteredpixel.shatteredpixeldungeon.actors.Char;
 import com.shatteredpixel.shatteredpixeldungeon.sprites.CharSprite;
+import com.watabou.noosa.Camera;
 import com.watabou.noosa.Game;
 import com.watabou.noosa.Visual;
 import com.watabou.utils.Callback;
@@ -40,7 +42,7 @@ public class Pushing extends Actor {
 	private Callback callback;
 
 	{
-		actPriority = VFX_PRIO;
+		actPriority = VFX_PRIO+10;
 	}
 	
 	public Pushing( Char ch, int from, int to ) {
@@ -48,6 +50,10 @@ public class Pushing extends Actor {
 		this.from = from;
 		this.to = to;
 		this.callback = null;
+
+		if (ch == Dungeon.hero){
+			Camera.main.panFollow(ch.sprite, 20f);
+		}
 	}
 
 	public Pushing( Char ch, int from, int to, Callback callback ) {
@@ -58,7 +64,9 @@ public class Pushing extends Actor {
 	@Override
 	protected boolean act() {
 		if (sprite != null) {
-			
+			if (Dungeon.level.heroFOV[from] || Dungeon.level.heroFOV[to]){
+				sprite.visible = true;
+			}
 			if (effect == null) {
 				new Effect();
 			}

@@ -3,7 +3,7 @@
  * Copyright (C) 2012-2015 Oleg Dolya
  *
  * Shattered Pixel Dungeon
- * Copyright (C) 2014-2019 Evan Debenham
+ * Copyright (C) 2014-2023 Evan Debenham
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -21,8 +21,11 @@
 
 package com.shatteredpixel.shatteredpixeldungeon.tiles;
 
+import com.shatteredpixel.shatteredpixeldungeon.Assets;
 import com.shatteredpixel.shatteredpixeldungeon.Dungeon;
-import com.shatteredpixel.shatteredpixeldungeon.levels.NewHallsBossLevel;
+import com.shatteredpixel.shatteredpixeldungeon.levels.HallsBossLevel;
+import com.shatteredpixel.shatteredpixeldungeon.levels.MiningLevel;
+import com.shatteredpixel.shatteredpixeldungeon.levels.Terrain;
 import com.watabou.noosa.TextureFilm;
 import com.watabou.noosa.Tilemap;
 
@@ -39,15 +42,12 @@ public class WallBlockingTilemap extends Tilemap {
 	private static final int BLOCK_BELOW    = 3;
 
 	public WallBlockingTilemap() {
-		super("wall_blocking.png", new TextureFilm( "wall_blocking.png", SIZE, SIZE ) );
+		super(Assets.Environment.WALL_BLOCKING, new TextureFilm( Assets.Environment.WALL_BLOCKING, SIZE, SIZE ) );
 		map( new int[Dungeon.level.length()], Dungeon.level.width());
 	}
 
 	@Override
 	public synchronized void updateMap() {
-		super.updateMap();
-		data = new int[size]; //clears all values, including cleared tiles
-		
 		for (int cell = 0; cell < data.length; cell++) {
 			//force all top/bottom row, and none-discoverable cells to cleared
 			if (!Dungeon.level.discoverable[cell]
@@ -58,6 +58,8 @@ public class WallBlockingTilemap extends Tilemap {
 				updateMapCell(cell);
 			}
 		}
+
+		super.updateMap();
 	}
 
 	private int curr;
@@ -67,13 +69,11 @@ public class WallBlockingTilemap extends Tilemap {
 
 		//FIXME this is to address the wall blocking looking odd on the new yog floor.
 		// The true solution is to improve the fog of war so the blockers aren't necessary.
-		if (Dungeon.level instanceof NewHallsBossLevel){
+		if (Dungeon.level instanceof HallsBossLevel){
 			data[cell] = CLEARED;
 			super.updateMapCell(cell);
 			return;
 		}
-		
-		//TODO should doors be considered? currently the blocking is a bit permissive around doors
 
 		//non-wall tiles
 		if (!wall(cell)) {
@@ -108,8 +108,14 @@ public class WallBlockingTilemap extends Tilemap {
 				//- none of the remaining 5 neighbour cells are both not a wall and visible
 				
 				//if all 3 above are wall we can shortcut and just clear the cell
+				//unless one or more is a shelf, or we can mine, then we have to just block none
 				if (wall(cell - 1 - mapWidth) && wall(cell - mapWidth) && wall(cell + 1 - mapWidth)){
-					curr = CLEARED;
+					if (shelf(cell - 1 - mapWidth) || shelf(cell - mapWidth)
+							|| shelf(cell + 1 - mapWidth) || Dungeon.level instanceof MiningLevel){
+						curr = BLOCK_NONE;
+					} else {
+						curr = CLEARED;
+					}
 					
 				} else if ((!wall(cell - 1 - mapWidth) && !fogHidden(cell - 1 - mapWidth) && wall(cell - 1)) ||
 						(!wall(cell - mapWidth) && !fogHidden(cell - mapWidth)) ||
@@ -197,6 +203,10 @@ public class WallBlockingTilemap extends Tilemap {
 		return DungeonTileSheet.wallStitcheable(Dungeon.level.map[cell]);
 	}
 
+	private boolean shelf(int cell) {
+		return Dungeon.level.map[cell] == Terrain.BOOKSHELF;
+	}
+
 	private boolean door(int cell) {
 		return DungeonTileSheet.doorTile(Dungeon.level.map[cell]);
 	}
@@ -204,8 +214,8 @@ public class WallBlockingTilemap extends Tilemap {
 	public synchronized void updateArea(int cell, int radius){
 		int l = cell%mapWidth - radius;
 		int t = cell/mapWidth - radius;
-		int r = cell%mapWidth + radius;
-		int b = cell/mapWidth + radius;
+		int r = cell%mapWidth - radius + 1 + 2*radius;
+		int b = cell/mapWidth - radius + 1 + 2*radius;
 		updateArea(
 				Math.max(0, l),
 				Math.max(0, t),

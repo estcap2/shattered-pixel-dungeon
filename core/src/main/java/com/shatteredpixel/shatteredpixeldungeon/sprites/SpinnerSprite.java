@@ -3,7 +3,7 @@
  * Copyright (C) 2012-2015 Oleg Dolya
  *
  * Shattered Pixel Dungeon
- * Copyright (C) 2014-2019 Evan Debenham
+ * Copyright (C) 2014-2023 Evan Debenham
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -37,7 +37,7 @@ public class SpinnerSprite extends MobSprite {
 
 		perspectiveRaise = 0f;
 
-		texture( Assets.SPINNER );
+		texture( Assets.Sprites.SPINNER );
 		
 		TextureFilm frames = new TextureFilm( texture, 16, 16 );
 		
@@ -61,14 +61,18 @@ public class SpinnerSprite extends MobSprite {
 	@Override
 	public void link(Char ch) {
 		super.link(ch);
-		if (parent != null) parent.sendToBack(this);
+		if (parent != null) {
+			parent.sendToBack(this);
+			if (aura != null){
+				parent.sendToBack(aura);
+			}
+		}
 		renderShadow = false;
 	}
 	
 	public void zap( int cell ) {
-		
-		turnTo( ch.pos , cell );
-		play( zap );
+
+		super.zap( cell );
 		
 		MagicMissile.boltFromChar( parent,
 				MagicMissile.MAGIC_MISSILE,
@@ -80,7 +84,7 @@ public class SpinnerSprite extends MobSprite {
 						((Spinner)ch).shootWeb();
 					}
 				} );
-		Sample.INSTANCE.play( Assets.SND_MISS );
+		Sample.INSTANCE.play( Assets.Sounds.MISS );
 	}
 	
 	@Override

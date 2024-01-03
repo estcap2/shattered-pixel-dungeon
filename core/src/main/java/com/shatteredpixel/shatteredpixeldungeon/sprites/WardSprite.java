@@ -1,3 +1,24 @@
+/*
+ * Pixel Dungeon
+ * Copyright (C) 2012-2015 Oleg Dolya
+ *
+ * Shattered Pixel Dungeon
+ * Copyright (C) 2014-2023 Evan Debenham
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>
+ */
+
 package com.shatteredpixel.shatteredpixeldungeon.sprites;
 
 import com.shatteredpixel.shatteredpixeldungeon.Assets;
@@ -17,7 +38,7 @@ public class WardSprite extends MobSprite {
 	public WardSprite(){
 		super();
 
-		texture(Assets.WARDS);
+		texture(Assets.Sprites.WARDS);
 
 		tierIdles[1] = new Animation( 1, true );
 		tierIdles[1].frames(texture.uvRect(0, 0, 9, 10));
@@ -71,8 +92,19 @@ public class WardSprite extends MobSprite {
 			}
 		} );
 	}
-	
-	public void linkVisuals( Char ch ){
+
+	@Override
+	public void resetColor() {
+		super.resetColor();
+		if (ch instanceof WandOfWarding.Ward){
+			WandOfWarding.Ward ward = (WandOfWarding.Ward) ch;
+			if (ward.tier <= 3){
+				brightness(Math.max(0.2f, 1f - (ward.totalZaps / (float)(2*ward.tier-1))));
+			}
+		}
+	}
+
+	public void linkVisuals(Char ch ){
 		
 		if (ch == null) return;
 		
@@ -92,6 +124,8 @@ public class WardSprite extends MobSprite {
 			parent.sendToBack(this);
 		}
 
+		resetColor();
+		if (ch != null) place(ch.pos);
 		idle();
 
 		if (tier <= 3){
@@ -124,4 +158,8 @@ public class WardSprite extends MobSprite {
 		}
 	}
 
+	@Override
+	public int blood() {
+		return 0xFFCC33FF;
+	}
 }

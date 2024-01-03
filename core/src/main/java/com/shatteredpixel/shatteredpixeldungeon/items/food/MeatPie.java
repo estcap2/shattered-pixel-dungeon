@@ -3,7 +3,7 @@
  * Copyright (C) 2012-2015 Oleg Dolya
  *
  * Shattered Pixel Dungeon
- * Copyright (C) 2014-2019 Evan Debenham
+ * Copyright (C) 2014-2023 Evan Debenham
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -44,7 +44,7 @@ public class MeatPie extends Food {
 	}
 	
 	@Override
-	public int price() {
+	public int value() {
 		return 40 * quantity;
 	}
 	
@@ -58,7 +58,7 @@ public class MeatPie extends Food {
 			
 			for (Item ingredient : ingredients){
 				if (ingredient.quantity() > 0) {
-					if (ingredient instanceof Pasty) {
+					if (ingredient instanceof Pasty || ingredient instanceof PhantomMeat) {
 						pasty = true;
 					} else if (ingredient.getClass() == Food.class) {
 						ration = true;

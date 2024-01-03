@@ -3,7 +3,7 @@
  * Copyright (C) 2012-2015 Oleg Dolya
  *
  * Shattered Pixel Dungeon
- * Copyright (C) 2014-2019 Evan Debenham
+ * Copyright (C) 2014-2023 Evan Debenham
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -23,6 +23,7 @@ package com.shatteredpixel.shatteredpixeldungeon.effects;
 
 import com.shatteredpixel.shatteredpixeldungeon.scenes.GameScene;
 import com.shatteredpixel.shatteredpixeldungeon.tiles.DungeonTilemap;
+import com.watabou.noosa.Visual;
 import com.watabou.noosa.particles.Emitter;
 import com.watabou.noosa.particles.PixelParticle;
 import com.watabou.utils.PointF;
@@ -41,6 +42,7 @@ public class Splash {
 		}
 		
 		Emitter emitter = GameScene.emitter();
+		if (emitter == null) return;
 		emitter.pos( p );
 		
 		FACTORY.color = color;
@@ -56,12 +58,44 @@ public class Splash {
 		}
 		
 		Emitter emitter = GameScene.emitter();
+		if (emitter == null) return;
 		emitter.pos( p );
 		
 		FACTORY.color = color;
 		FACTORY.dir = dir;
 		FACTORY.cone = cone;
 		emitter.burst( FACTORY, n );
+	}
+
+	public static void around(Visual v, final int color, int n ) {
+		if (n <= 0) {
+			return;
+		}
+
+		Emitter emitter = GameScene.emitter();
+		if (emitter == null) return;
+		emitter.pos( v );
+
+		FACTORY.color = color;
+		FACTORY.dir = -3.1415926f / 2;
+		FACTORY.cone = 3.1415926f;
+		emitter.burst( FACTORY, n );
+	}
+
+	public static void at( PointF p, final float dir, final float cone, final int color, int n, float interval ) {
+
+		if (n <= 0) {
+			return;
+		}
+
+		Emitter emitter = GameScene.emitter();
+		if (emitter == null) return;
+		emitter.pos( p );
+
+		FACTORY.color = color;
+		FACTORY.dir = dir;
+		FACTORY.cone = cone;
+		emitter.start( FACTORY, interval, n );
 	}
 	
 	private static final SplashFactory FACTORY = new SplashFactory();

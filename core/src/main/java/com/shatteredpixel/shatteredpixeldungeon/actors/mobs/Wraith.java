@@ -3,7 +3,7 @@
  * Copyright (C) 2012-2015 Oleg Dolya
  *
  * Shattered Pixel Dungeon
- * Copyright (C) 2014-2019 Evan Debenham
+ * Copyright (C) 2014-2023 Evan Debenham
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -24,9 +24,8 @@ package com.shatteredpixel.shatteredpixeldungeon.actors.mobs;
 import com.shatteredpixel.shatteredpixeldungeon.Dungeon;
 import com.shatteredpixel.shatteredpixeldungeon.actors.Actor;
 import com.shatteredpixel.shatteredpixeldungeon.actors.Char;
-import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Terror;
+import com.shatteredpixel.shatteredpixeldungeon.effects.particles.ChallengeParticle;
 import com.shatteredpixel.shatteredpixeldungeon.effects.particles.ShadowParticle;
-import com.shatteredpixel.shatteredpixeldungeon.items.weapon.enchantments.Grim;
 import com.shatteredpixel.shatteredpixeldungeon.scenes.GameScene;
 import com.shatteredpixel.shatteredpixeldungeon.sprites.WraithSprite;
 import com.watabou.noosa.tweeners.AlphaTweener;
@@ -38,7 +37,7 @@ public class Wraith extends Mob {
 
 	private static final float SPAWN_DELAY	= 2f;
 	
-	private int level;
+	protected int level;
 	
 	{
 		spriteClass = WraithSprite.class;
@@ -95,28 +94,35 @@ public class Wraith extends Mob {
 		return true;
 	}
 	
-	public static void spawnAround( int pos ) {
+	public static void spawnAround( int pos, boolean allowExotic ) {
 		for (int n : PathFinder.NEIGHBOURS4) {
-			int cell = pos + n;
-			if (Dungeon.level.passable[cell] && Actor.findChar( cell ) == null) {
-				spawnAt( cell );
-			}
+			spawnAt( pos + n, allowExotic );
 		}
 	}
 	
-	public static Wraith spawnAt( int pos ) {
-		if (Dungeon.level.passable[pos] && Actor.findChar( pos ) == null) {
-			
-			Wraith w = new Wraith();
-			w.adjustStats( Dungeon.depth );
+	public static Wraith spawnAt( int pos, boolean allowExotic ) {
+		if ((!Dungeon.level.solid[pos] || Dungeon.level.passable[pos]) && Actor.findChar( pos ) == null) {
+
+			Wraith w;
+			if (allowExotic && Random.Int(100) == 0){
+				w = new TormentedSpirit();
+			} else {
+				w = new Wraith();
+			}
+			w.adjustStats( Dungeon.scalingDepth() );
 			w.pos = pos;
 			w.state = w.HUNTING;
 			GameScene.add( w, SPAWN_DELAY );
-			
+			Dungeon.level.occupyCell(w);
+
 			w.sprite.alpha( 0 );
 			w.sprite.parent.add( new AlphaTweener( w.sprite, 1, 0.5f ) );
-			
-			w.sprite.emitter().burst( ShadowParticle.CURSE, 5 );
+
+			if (w instanceof TormentedSpirit){
+				w.sprite.emitter().burst(ChallengeParticle.FACTORY, 10);
+			} else {
+				w.sprite.emitter().burst(ShadowParticle.CURSE, 5);
+			}
 			
 			return w;
 		} else {

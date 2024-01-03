@@ -3,7 +3,7 @@
  * Copyright (C) 2012-2015 Oleg Dolya
  *
  * Shattered Pixel Dungeon
- * Copyright (C) 2014-2019 Evan Debenham
+ * Copyright (C) 2014-2023 Evan Debenham
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -21,6 +21,8 @@
 
 package com.shatteredpixel.shatteredpixeldungeon.ui;
 
+import com.shatteredpixel.shatteredpixeldungeon.messages.Languages;
+import com.shatteredpixel.shatteredpixeldungeon.messages.Messages;
 import com.shatteredpixel.shatteredpixeldungeon.scenes.PixelScene;
 import com.watabou.noosa.Game;
 import com.watabou.noosa.RenderedText;
@@ -47,6 +49,11 @@ public class RenderedTextBlock extends Component {
 	
 	private int hightlightColor = Window.TITLE_COLOR;
 	private boolean highlightingEnabled = true;
+
+	public static final int LEFT_ALIGN = 1;
+	public static final int CENTER_ALIGN = 2;
+	public static final int RIGHT_ALIGN = 3;
+	private int alignment = LEFT_ALIGN;
 	
 	public RenderedTextBlock(int size){
 		this.size = size;
@@ -66,6 +73,18 @@ public class RenderedTextBlock extends Component {
 			
 			build();
 		}
+	}
+
+	//for manual text block splitting, a space between each word is assumed
+	public void tokens(String... words){
+		StringBuilder fullText = new StringBuilder();
+		for (String word : words) {
+			fullText.append(word);
+		}
+		text = fullText.toString();
+
+		tokens = words;
+		build();
 	}
 
 	public void text(String text, int maxWidth){
@@ -175,6 +194,11 @@ public class RenderedTextBlock extends Component {
 		}
 	}
 
+	public synchronized void align(int align){
+		alignment = align;
+		layout();
+	}
+
 	@Override
 	protected synchronized void layout() {
 		super.layout();
@@ -183,37 +207,76 @@ public class RenderedTextBlock extends Component {
 		float height = 0;
 		nLines = 1;
 
+		ArrayList<ArrayList<RenderedText>> lines = new ArrayList<>();
+		ArrayList<RenderedText> curLine = new ArrayList<>();
+		lines.add(curLine);
+
 		width = 0;
-		for (RenderedText word : words){
+		for (int i = 0; i < words.size(); i++){
+			RenderedText word = words.get(i);
 			if (word == SPACE){
-				x += 1.5f;
+				x += 1.667f;
 			} else if (word == NEWLINE) {
 				//newline
 				y += height+2f;
 				x = this.x;
 				nLines++;
+				curLine = new ArrayList<>();
+				lines.add(curLine);
 			} else {
 				if (word.height() > height) height = word.height();
 
-				if ((x - this.x) + word.width() > maxWidth){
+				float fullWidth = word.width();
+				int j = i+1;
+
+				//this is so that words split only by highlighting are still grouped in layout
+				//Chinese/Japanese always render every character separately without spaces however
+				while (Messages.lang() != Languages.CHINESE && Messages.lang() != Languages.JAPANESE
+						&& j < words.size() && words.get(j) != SPACE && words.get(j) != NEWLINE){
+					fullWidth += words.get(j).width() - 0.667f;
+					j++;
+				}
+
+				if ((x - this.x) + fullWidth - 0.001f > maxWidth && !curLine.isEmpty()){
 					y += height+2f;
 					x = this.x;
 					nLines++;
+					curLine = new ArrayList<>();
+					lines.add(curLine);
 				}
 
 				word.x = x;
 				word.y = y;
 				PixelScene.align(word);
 				x += word.width();
+				curLine.add(word);
 
 				if ((x - this.x) > width) width = (x - this.x);
 				
-				//TODO spacing currently doesn't factor in halfwidth and fullwidth characters
+				//Note that spacing currently doesn't factor in halfwidth and fullwidth characters
 				//(e.g. Ideographic full stop)
-				x -= 0.5f;
+				x -= 0.667f;
 
 			}
 		}
 		this.height = (y - this.y) + height;
+
+		if (alignment != LEFT_ALIGN){
+			for (ArrayList<RenderedText> line : lines){
+				if (line.size() == 0) continue;
+				float lineWidth = line.get(line.size()-1).width() + line.get(line.size()-1).x - this.x;
+				if (alignment == CENTER_ALIGN){
+					for (RenderedText text : line){
+						text.x += (width() - lineWidth)/2f;
+						PixelScene.align(text);
+					}
+				} else if (alignment == RIGHT_ALIGN) {
+					for (RenderedText text : line){
+						text.x += width() - lineWidth;
+						PixelScene.align(text);
+					}
+				}
+			}
+		}
 	}
 }

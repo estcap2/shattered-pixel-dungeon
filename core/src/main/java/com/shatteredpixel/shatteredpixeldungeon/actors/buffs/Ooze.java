@@ -3,7 +3,7 @@
  * Copyright (C) 2012-2015 Oleg Dolya
  *
  * Shattered Pixel Dungeon
- * Copyright (C) 2014-2019 Evan Debenham
+ * Copyright (C) 2014-2023 Evan Debenham
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -30,6 +30,8 @@ import com.watabou.utils.Random;
 
 public class Ooze extends Buff {
 
+	public static final float DURATION = 20f;
+
 	{
 		type = buffType.NEGATIVE;
 		announced = true;
@@ -47,27 +49,22 @@ public class Ooze extends Buff {
 	@Override
 	public void restoreFromBundle( Bundle bundle ) {
 		super.restoreFromBundle(bundle);
-		//pre-0.7.0
-		if (bundle.contains( LEFT )) {
-			left = bundle.getFloat(LEFT);
-		} else {
-			left = 20;
-		}
+		left = bundle.getFloat(LEFT);
 	}
 	
 	@Override
 	public int icon() {
 		return BuffIndicator.OOZE;
 	}
-	
+
 	@Override
-	public String toString() {
-		return Messages.get(this, "name");
+	public float iconFadePercent() {
+		return Math.max(0, (DURATION - left) / DURATION);
 	}
 
 	@Override
-	public String heroMessage() {
-		return Messages.get(this, "heromsg");
+	public String iconTextDisplay() {
+		return Integer.toString((int)left);
 	}
 
 	@Override
@@ -82,12 +79,16 @@ public class Ooze extends Buff {
 	@Override
 	public boolean act() {
 		if (target.isAlive()) {
-			if (Dungeon.depth > 4)
-				target.damage( Dungeon.depth/5, this );
-			else if (Random.Int(2) == 0)
-				target.damage( 1, this );
+			if (Dungeon.scalingDepth() > 5) {
+				target.damage(1 + Dungeon.scalingDepth() / 5, this);
+			} else if (Dungeon.scalingDepth() == 5){
+				target.damage(1, this); //1 dmg per turn vs Goo
+			} else if (Random.Int(2) == 0) {
+				target.damage(1, this); //0.5 dmg per turn in sewers
+			}
+
 			if (!target.isAlive() && target == Dungeon.hero) {
-				Dungeon.fail( getClass() );
+				Dungeon.fail( this );
 				GLog.n( Messages.get(this, "ondeath") );
 			}
 			spend( TICK );

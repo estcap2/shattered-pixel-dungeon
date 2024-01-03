@@ -3,7 +3,7 @@
  * Copyright (C) 2012-2015 Oleg Dolya
  *
  * Shattered Pixel Dungeon
- * Copyright (C) 2014-2019 Evan Debenham
+ * Copyright (C) 2014-2023 Evan Debenham
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -31,10 +31,13 @@ import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Thief;
 import com.shatteredpixel.shatteredpixeldungeon.effects.particles.ElmoParticle;
 import com.shatteredpixel.shatteredpixeldungeon.items.Heap;
 import com.shatteredpixel.shatteredpixeldungeon.items.Item;
+import com.shatteredpixel.shatteredpixeldungeon.items.armor.Armor;
+import com.shatteredpixel.shatteredpixeldungeon.items.armor.glyphs.Brimstone;
+import com.shatteredpixel.shatteredpixeldungeon.items.artifacts.TimekeepersHourglass;
 import com.shatteredpixel.shatteredpixeldungeon.items.food.ChargrilledMeat;
+import com.shatteredpixel.shatteredpixeldungeon.items.food.FrozenCarpaccio;
 import com.shatteredpixel.shatteredpixeldungeon.items.food.MysteryMeat;
 import com.shatteredpixel.shatteredpixeldungeon.items.scrolls.Scroll;
-import com.shatteredpixel.shatteredpixeldungeon.items.scrolls.ScrollOfUpgrade;
 import com.shatteredpixel.shatteredpixeldungeon.messages.Messages;
 import com.shatteredpixel.shatteredpixeldungeon.scenes.GameScene;
 import com.shatteredpixel.shatteredpixeldungeon.sprites.CharSprite;
@@ -77,14 +80,21 @@ public class Burning extends Buff implements Hero.Doom {
 	}
 
 	@Override
+	public boolean attachTo(Char target) {
+		Buff.detach( target, Chill.class);
+
+		return super.attachTo(target);
+	}
+
+	@Override
 	public boolean act() {
 		
 		if (target.isAlive() && !target.isImmune(getClass())) {
 			
-			int damage = Random.NormalIntRange( 1, 3 + Dungeon.depth/4 );
+			int damage = Random.NormalIntRange( 1, 3 + Dungeon.scalingDepth()/4 );
 			Buff.detach( target, Chill.class);
 
-			if (target instanceof Hero) {
+			if (target instanceof Hero && target.buff(TimekeepersHourglass.timeStasis.class) == null) {
 				
 				Hero hero = (Hero)target;
 
@@ -97,17 +107,18 @@ public class Burning extends Buff implements Hero.Doom {
 
 					ArrayList<Item> burnable = new ArrayList<>();
 					//does not reach inside of containers
-					for (Item i : hero.belongings.backpack.items){
-						if ((i instanceof Scroll && !(i instanceof ScrollOfUpgrade))
-								|| i instanceof MysteryMeat){
-							burnable.add(i);
+					if (hero.buff(LostInventory.class) == null) {
+						for (Item i : hero.belongings.backpack.items) {
+							if (!i.unique && (i instanceof Scroll || i instanceof MysteryMeat || i instanceof FrozenCarpaccio)) {
+								burnable.add(i);
+							}
 						}
 					}
 
 					if (!burnable.isEmpty()){
 						Item toBurn = Random.element(burnable).detach(hero.belongings.backpack);
-						GLog.w( Messages.get(this, "burnsup", Messages.capitalize(toBurn.toString())) );
-						if (toBurn instanceof MysteryMeat){
+						GLog.w( Messages.capitalize(Messages.get(this, "burnsup", toBurn.title())) );
+						if (toBurn instanceof MysteryMeat || toBurn instanceof FrozenCarpaccio){
 							ChargrilledMeat steak = new ChargrilledMeat();
 							if (!steak.collect( hero.belongings.backpack )) {
 								Dungeon.level.drop( steak, hero.pos ).sprite.drop();
@@ -121,12 +132,11 @@ public class Burning extends Buff implements Hero.Doom {
 				target.damage( damage, this );
 			}
 
-			if (target instanceof Thief) {
+			if (target instanceof Thief && ((Thief) target).item != null) {
 
 				Item item = ((Thief) target).item;
 
-				if (item instanceof Scroll &&
-						!(item instanceof ScrollOfUpgrade)) {
+				if (!item.unique && item instanceof Scroll) {
 					target.sprite.emitter().burst( ElmoParticle.FACTORY, 6 );
 					((Thief)target).item = null;
 				} else if (item instanceof MysteryMeat) {
@@ -162,6 +172,23 @@ public class Burning extends Buff implements Hero.Doom {
 	}
 	
 	public void reignite( Char ch, float duration ) {
+		if (ch.isImmune(Burning.class)){
+			//TODO this only works for the hero, not others who can have brimstone+arcana effect
+			// e.g. prismatic image, shadow clone
+			if (ch instanceof Hero
+					&& ((Hero) ch).belongings.armor() != null
+					&& ((Hero) ch).belongings.armor().hasGlyph(Brimstone.class, ch)){
+				//has a 2*boost/50% chance to generate 1 shield per turn, to a max of 4x boost
+				float shieldChance = 2*(Armor.Glyph.genericProcChanceMultiplier(ch) - 1f);
+				int shieldCap = Math.round(shieldChance*4f);
+				if (shieldCap > 0 && Random.Float() < shieldChance){
+					Barrier barrier = Buff.affect(ch, Barrier.class);
+					if (barrier.shielding() < shieldCap){
+						barrier.incShield(1);
+					}
+				}
+			}
+		}
 		left = duration;
 	}
 	
@@ -171,19 +198,19 @@ public class Burning extends Buff implements Hero.Doom {
 	}
 
 	@Override
+	public float iconFadePercent() {
+		return Math.max(0, (DURATION - left) / DURATION);
+	}
+
+	@Override
+	public String iconTextDisplay() {
+		return Integer.toString((int)left);
+	}
+
+	@Override
 	public void fx(boolean on) {
 		if (on) target.sprite.add(CharSprite.State.BURNING);
 		else target.sprite.remove(CharSprite.State.BURNING);
-	}
-
-	@Override
-	public String heroMessage() {
-		return Messages.get(this, "heromsg");
-	}
-
-	@Override
-	public String toString() {
-		return Messages.get(this, "name");
 	}
 
 	@Override
@@ -196,7 +223,7 @@ public class Burning extends Buff implements Hero.Doom {
 		
 		Badges.validateDeathFromFire();
 		
-		Dungeon.fail( getClass() );
+		Dungeon.fail( this );
 		GLog.n( Messages.get(this, "ondeath") );
 	}
 }

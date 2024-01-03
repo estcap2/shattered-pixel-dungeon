@@ -3,7 +3,7 @@
  * Copyright (C) 2012-2015 Oleg Dolya
  *
  * Shattered Pixel Dungeon
- * Copyright (C) 2014-2019 Evan Debenham
+ * Copyright (C) 2014-2023 Evan Debenham
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -23,14 +23,18 @@ package com.shatteredpixel.shatteredpixeldungeon.levels.traps;
 
 import com.shatteredpixel.shatteredpixeldungeon.Assets;
 import com.shatteredpixel.shatteredpixeldungeon.Dungeon;
+import com.shatteredpixel.shatteredpixeldungeon.actors.Actor;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.Hero;
+import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Statue;
 import com.shatteredpixel.shatteredpixeldungeon.effects.CellEmitter;
 import com.shatteredpixel.shatteredpixeldungeon.effects.Speck;
 import com.shatteredpixel.shatteredpixeldungeon.items.Heap;
+import com.shatteredpixel.shatteredpixeldungeon.items.Honeypot;
 import com.shatteredpixel.shatteredpixeldungeon.items.Item;
 import com.shatteredpixel.shatteredpixeldungeon.items.KindOfWeapon;
 import com.shatteredpixel.shatteredpixeldungeon.messages.Messages;
 import com.shatteredpixel.shatteredpixeldungeon.scenes.GameScene;
+import com.shatteredpixel.shatteredpixeldungeon.ui.ActionIndicator;
 import com.shatteredpixel.shatteredpixeldungeon.utils.GLog;
 import com.watabou.noosa.audio.Sample;
 import com.watabou.utils.PathFinder;
@@ -46,19 +50,32 @@ public class DisarmingTrap extends Trap{
 	public void activate() {
 		Heap heap = Dungeon.level.heaps.get( pos );
 
-		if (heap != null){
-			int cell = Dungeon.level.randomRespawnCell( null );
+		if (heap != null && heap.type == Heap.Type.HEAP){
+
+			int cell;
+			do {
+				cell = Dungeon.level.randomRespawnCell(null);
+			} while (cell != -1 && Dungeon.level.heaps.get( pos ) != null
+						&& Dungeon.level.heaps.get( pos ).type != Heap.Type.HEAP);
 
 			if (cell != -1) {
 				Item item = heap.pickUp();
-				Dungeon.level.drop( item, cell ).seen = true;
-				for (int i : PathFinder.NEIGHBOURS9)
-					Dungeon.level.visited[cell+i] = true;
+				Heap dropped = Dungeon.level.drop( item, cell );
+				dropped.seen = true;
+				if (item instanceof Honeypot.ShatteredPot){
+					((Honeypot.ShatteredPot)item).movePot(pos, cell);
+				}
+				for (int i : PathFinder.NEIGHBOURS9) Dungeon.level.visited[cell+i] = true;
 				GameScene.updateFog();
-
-				Sample.INSTANCE.play(Assets.SND_TELEPORT);
+				Sample.INSTANCE.play(Assets.Sounds.TELEPORT);
 				CellEmitter.get(pos).burst(Speck.factory(Speck.LIGHT), 4);
 			}
+		}
+
+		if (Actor.findChar(pos) instanceof Statue){
+			Actor.findChar(pos).die(this);
+			Sample.INSTANCE.play(Assets.Sounds.TELEPORT);
+			CellEmitter.get(pos).burst(Speck.factory(Speck.LIGHT), 4);
 		}
 
 		if (Dungeon.hero.pos == pos && !Dungeon.hero.flying){
@@ -78,6 +95,7 @@ public class DisarmingTrap extends Trap{
 
 				hero.belongings.weapon = null;
 				Dungeon.quickslot.clearItem(weapon);
+				ActionIndicator.refresh();
 				weapon.updateQuickslot();
 
 				Dungeon.level.drop(weapon, cell).seen = true;
@@ -87,7 +105,7 @@ public class DisarmingTrap extends Trap{
 
 				GLog.w( Messages.get(this, "disarm") );
 
-				Sample.INSTANCE.play(Assets.SND_TELEPORT);
+				Sample.INSTANCE.play(Assets.Sounds.TELEPORT);
 				CellEmitter.get(pos).burst(Speck.factory(Speck.LIGHT), 4);
 
 			}

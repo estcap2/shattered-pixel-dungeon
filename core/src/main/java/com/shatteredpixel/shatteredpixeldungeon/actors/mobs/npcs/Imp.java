@@ -3,7 +3,7 @@
  * Copyright (C) 2012-2015 Oleg Dolya
  *
  * Shattered Pixel Dungeon
- * Copyright (C) 2014-2019 Evan Debenham
+ * Copyright (C) 2014-2023 Evan Debenham
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -22,7 +22,9 @@
 package com.shatteredpixel.shatteredpixeldungeon.actors.mobs.npcs;
 
 import com.shatteredpixel.shatteredpixeldungeon.Dungeon;
+import com.shatteredpixel.shatteredpixeldungeon.Statistics;
 import com.shatteredpixel.shatteredpixeldungeon.actors.Char;
+import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.AscensionChallenge;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Buff;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Golem;
 import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.Mob;
@@ -55,17 +57,19 @@ public class Imp extends NPC {
 	
 	@Override
 	protected boolean act() {
-		
-		if (!Quest.given && Dungeon.level.heroFOV[pos]) {
-			if (!seenBefore) {
-				yell( Messages.get(this, "hey", Dungeon.hero.name() ) );
+		if (Dungeon.hero.buff(AscensionChallenge.class) != null){
+			die(null);
+			return true;
+		}
+		if (!Quest.given && Dungeon.level.visited[pos]) {
+			Notes.add( Notes.Landmark.IMP );
+			if (!seenBefore && Dungeon.level.heroFOV[pos]) {
+				yell(Messages.get(this, "hey", Messages.titleCase(Dungeon.hero.name())));
+				seenBefore = true;
 			}
-			seenBefore = true;
 		} else {
 			seenBefore = false;
 		}
-		
-		throwItem();
 		
 		return super.act();
 	}
@@ -74,13 +78,15 @@ public class Imp extends NPC {
 	public int defenseSkill( Char enemy ) {
 		return INFINITE_EVASION;
 	}
-	
+
 	@Override
 	public void damage( int dmg, Object src ) {
+		//do nothing
 	}
-	
+
 	@Override
-	public void add( Buff buff ) {
+	public boolean add( Buff buff ) {
+		return false;
 	}
 	
 	@Override
@@ -109,15 +115,14 @@ public class Imp extends NPC {
 				});
 			} else {
 				tell( Quest.alternative ?
-						Messages.get(this, "monks_2", Dungeon.hero.name())
-						: Messages.get(this, "golems_2", Dungeon.hero.name()) );
+						Messages.get(this, "monks_2", Messages.titleCase(Dungeon.hero.name()))
+						: Messages.get(this, "golems_2", Messages.titleCase(Dungeon.hero.name())) );
 			}
 			
 		} else {
 			tell( Quest.alternative ? Messages.get(this, "monks_1") : Messages.get(this, "golems_1") );
 			Quest.given = true;
 			Quest.completed = false;
-			
 			Notes.add( Notes.Landmark.IMP );
 		}
 
@@ -135,7 +140,7 @@ public class Imp extends NPC {
 	
 	public void flee() {
 		
-		yell( Messages.get(this, "cya", Dungeon.hero.name()) );
+		yell( Messages.get(this, "cya", Messages.titleCase(Dungeon.hero.name())) );
 		
 		destroy();
 		sprite.die();
@@ -153,6 +158,8 @@ public class Imp extends NPC {
 		
 		public static void reset() {
 			spawned = false;
+			given = false;
+			completed = false;
 
 			reward = null;
 		}
@@ -237,7 +244,7 @@ public class Imp extends NPC {
 		}
 		
 		public static void process( Mob mob ) {
-			if (spawned && given && !completed) {
+			if (spawned && given && !completed && Dungeon.depth != 20) {
 				if ((alternative && mob instanceof Monk) ||
 					(!alternative && mob instanceof Golem)) {
 					
@@ -249,7 +256,8 @@ public class Imp extends NPC {
 		public static void complete() {
 			reward = null;
 			completed = true;
-			
+
+			Statistics.questScores[3] = 4000;
 			Notes.remove( Notes.Landmark.IMP );
 		}
 		

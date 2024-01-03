@@ -3,7 +3,7 @@
  * Copyright (C) 2012-2015 Oleg Dolya
  *
  * Shattered Pixel Dungeon
- * Copyright (C) 2014-2019 Evan Debenham
+ * Copyright (C) 2014-2023 Evan Debenham
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -28,10 +28,11 @@ import com.shatteredpixel.shatteredpixeldungeon.actors.mobs.npcs.Sheep;
 import com.shatteredpixel.shatteredpixeldungeon.effects.CellEmitter;
 import com.shatteredpixel.shatteredpixeldungeon.effects.Speck;
 import com.shatteredpixel.shatteredpixeldungeon.scenes.GameScene;
-import com.shatteredpixel.shatteredpixeldungeon.utils.BArray;
+import com.watabou.utils.BArray;
 import com.watabou.noosa.audio.Sample;
 import com.watabou.utils.PathFinder;
-import com.watabou.utils.Random;
+
+import java.util.ArrayList;
 
 public class FlockTrap extends Trap {
 
@@ -43,41 +44,35 @@ public class FlockTrap extends Trap {
 
 	@Override
 	public void activate() {
-		//use an actor as we want to put this on a slight delay so all chars get a chance to act this turn first.
-		Actor.add(new Actor() {
-
-			{ actPriority = BUFF_PRIO; }
-
-			protected boolean act() {
-				PathFinder.buildDistanceMap( pos, BArray.not( Dungeon.level.solid, null ), 2 );
-				for (int i = 0; i < PathFinder.distance.length; i++) {
-					Trap t;
-					if (PathFinder.distance[i] < Integer.MAX_VALUE) {
-						if (Dungeon.level.insideMap(i)
-								&& Actor.findChar(i) == null
-								&& !(Dungeon.level.pit[i])) {
-							Sheep sheep = new Sheep();
-							sheep.lifespan = Random.NormalIntRange( 4, 8 );
-							sheep.pos = i;
-							GameScene.add(sheep);
-							CellEmitter.get(i).burst(Speck.factory(Speck.WOOL), 4);
-							//before the tile is pressed, directly trigger traps to avoid sfx spam
-							if ((t = Dungeon.level.traps.get(i)) != null && t.active){
-								t.disarm();
-								t.reveal();
-								t.activate();
-							}
-							Dungeon.level.occupyCell(sheep);
-
-						}
-					}
-				}
-				Sample.INSTANCE.play(Assets.SND_PUFF);
-				Actor.remove(this);
-				return true;
+		PathFinder.buildDistanceMap( pos, BArray.not( Dungeon.level.solid, null ), 2 );
+		ArrayList<Integer> spawnPoints = new ArrayList<>();
+		for (int i = 0; i < PathFinder.distance.length; i++) {
+			if (PathFinder.distance[i] < Integer.MAX_VALUE) {
+				spawnPoints.add(i);
 			}
-		});
+		}
 
+		for (int i : spawnPoints){
+			Trap t;
+			if (Dungeon.level.insideMap(i)
+					&& Actor.findChar(i) == null
+					&& !(Dungeon.level.pit[i])) {
+				Sheep sheep = new Sheep();
+				sheep.lifespan = 6;
+				sheep.pos = i;
+				GameScene.add(sheep);
+				CellEmitter.get(i).burst(Speck.factory(Speck.WOOL), 4);
+				//before the tile is pressed, directly trigger traps to avoid sfx spam
+				if ((t = Dungeon.level.traps.get(i)) != null && t.active){
+					if (t.disarmedByActivation) t.disarm();
+					t.reveal();
+					t.activate();
+				}
+				Dungeon.level.occupyCell(sheep);
+				Sample.INSTANCE.play(Assets.Sounds.PUFF);
+				Sample.INSTANCE.play(Assets.Sounds.SHEEP);
+			}
+		}
 	}
 
 }

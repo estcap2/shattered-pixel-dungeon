@@ -3,7 +3,7 @@
  * Copyright (C) 2012-2015 Oleg Dolya
  *
  * Shattered Pixel Dungeon
- * Copyright (C) 2014-2019 Evan Debenham
+ * Copyright (C) 2014-2023 Evan Debenham
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -21,6 +21,7 @@
 
 package com.shatteredpixel.shatteredpixeldungeon.actors.buffs;
 
+import com.shatteredpixel.shatteredpixeldungeon.actors.hero.Hero;
 import com.shatteredpixel.shatteredpixeldungeon.messages.Messages;
 import com.shatteredpixel.shatteredpixeldungeon.sprites.CharSprite;
 import com.shatteredpixel.shatteredpixeldungeon.ui.BuffIndicator;
@@ -44,8 +45,14 @@ public class Healing extends Buff {
 	
 	@Override
 	public boolean act(){
-		
-		target.HP = Math.min(target.HT, target.HP + healingThisTick());
+
+		if (target.HP < target.HT) {
+			target.HP = Math.min(target.HT, target.HP + healingThisTick());
+
+			if (target.HP == target.HT && target instanceof Hero) {
+				((Hero) target).resting = false;
+			}
+		}
 		
 		healingLeft -= healingThisTick();
 		
@@ -63,11 +70,12 @@ public class Healing extends Buff {
 				Math.round(healingLeft * percentHealPerTick) + flatHealPerTick,
 				healingLeft);
 	}
-	
+
 	public void setHeal(int amount, float percentPerTick, int flatPerTick){
-		healingLeft = amount;
-		percentHealPerTick = percentPerTick;
-		flatHealPerTick = flatPerTick;
+		//multiple sources of healing do not overlap, but do combine the best of their properties
+		healingLeft = Math.max(healingLeft, amount);
+		percentHealPerTick = Math.max(percentHealPerTick, percentPerTick);
+		flatHealPerTick = Math.max(flatHealPerTick, flatPerTick);
 	}
 	
 	public void increaseHeal( int amount ){
@@ -104,10 +112,10 @@ public class Healing extends Buff {
 	public int icon() {
 		return BuffIndicator.HEALING;
 	}
-	
+
 	@Override
-	public String toString() {
-		return Messages.get(this, "name");
+	public String iconTextDisplay() {
+		return Integer.toString(healingLeft);
 	}
 	
 	@Override

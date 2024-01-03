@@ -3,7 +3,7 @@
  * Copyright (C) 2012-2015 Oleg Dolya
  *
  * Shattered Pixel Dungeon
- * Copyright (C) 2014-2019 Evan Debenham
+ * Copyright (C) 2014-2023 Evan Debenham
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -24,16 +24,20 @@ package com.watabou.noosa;
 import com.badlogic.gdx.Application;
 import com.badlogic.gdx.ApplicationListener;
 import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.controllers.Controllers;
+import com.badlogic.gdx.graphics.glutils.GLVersion;
 import com.badlogic.gdx.utils.TimeUtils;
 import com.watabou.glscripts.Script;
 import com.watabou.gltextures.TextureCache;
 import com.watabou.glwrap.Blending;
 import com.watabou.glwrap.Vertexbuffer;
-import com.watabou.input.GameAction;
+import com.watabou.input.ControllerHandler;
 import com.watabou.input.InputHandler;
+import com.watabou.input.PointerEvent;
 import com.watabou.noosa.audio.Music;
 import com.watabou.noosa.audio.Sample;
 import com.watabou.utils.Callback;
+import com.watabou.utils.DeviceCompat;
 import com.watabou.utils.PlatformSupport;
 import com.watabou.utils.Reflection;
 
@@ -51,7 +55,10 @@ public class Game implements ApplicationListener {
 	// Size of the EGL surface view
 	public static int width;
 	public static int height;
-	
+
+	//number of pixels from bottom of view before rendering starts
+	public static int bottomInset;
+
 	// Density: mdpi=1, hdpi=1.5, xhdpi=2...
 	public static float density = 1;
 	
@@ -73,8 +80,8 @@ public class Game implements ApplicationListener {
 	public static float elapsed = 0f;
 	public static float timeTotal = 0f;
 	public static long realTime = 0;
-	
-	protected static InputHandler inputHandler;
+
+	public static InputHandler inputHandler;
 	
 	public static PlatformSupport platform;
 	
@@ -85,26 +92,28 @@ public class Game implements ApplicationListener {
 		this.platform = platform;
 	}
 	
-	private boolean paused;
-	
-	public boolean isPaused(){
-		return paused;
-	}
-	
 	@Override
 	public void create() {
 		density = Gdx.graphics.getDensity();
+		if (density == Float.POSITIVE_INFINITY){
+			density = 100f / 160f; //assume 100PPI if density can't be found
+		}
 		dispHeight = Gdx.graphics.getDisplayMode().height;
 		dispWidth = Gdx.graphics.getDisplayMode().width;
-		
-		Blending.useDefault();
-		
+
 		inputHandler = new InputHandler( Gdx.input );
-		
+		if (ControllerHandler.controllersSupported()){
+			Controllers.addListener(new ControllerHandler());
+		}
+
 		//refreshes texture and vertex data stored on the gpu
+		versionContextRef = Gdx.graphics.getGLVersion();
+		Blending.useDefault();
 		TextureCache.reload();
-		Vertexbuffer.refreshAllBuffers();
+		Vertexbuffer.reload();
 	}
+
+	private GLVersion versionContextRef;
 	
 	@Override
 	public void resize(int width, int height) {
@@ -112,12 +121,18 @@ public class Game implements ApplicationListener {
 			return;
 		}
 
-		Blending.useDefault();
-		TextureCache.reload();
-		Vertexbuffer.refreshAllBuffers();
-		
+		//If the EGL context was destroyed, we need to refresh some data stored on the GPU.
+		// This checks that by seeing if GLVersion has a new object reference
+		if (versionContextRef != Gdx.graphics.getGLVersion()) {
+			versionContextRef = Gdx.graphics.getGLVersion();
+			Blending.useDefault();
+			TextureCache.reload();
+			Vertexbuffer.reload();
+		}
+
+		height -= bottomInset;
 		if (height != Game.height || width != Game.width) {
-			
+
 			Game.width = width;
 			Game.height = height;
 			
@@ -130,23 +145,39 @@ public class Game implements ApplicationListener {
 			resetScene();
 		}
 	}
-	
+
+	//FIXME this is a hack to improve start times on android (first frame is 'cheated' and skips rendering)
+	//This is mainly to improve stats on google play, as lots of texture refreshing leads to slow warm starts
+	//Would be nice to accomplish this goal in a less hacky way
+	private boolean justResumed = true;
+
 	@Override
 	public void render() {
+		//prevents weird rare cases where the app is running twice
+		if (instance != this){
+			finish();
+			return;
+		}
+
+		if (justResumed){
+			justResumed = false;
+			if (DeviceCompat.isAndroid()) return;
+		}
+
 		NoosaScript.get().resetCamera();
 		NoosaScriptNoLighting.get().resetCamera();
 		Gdx.gl.glDisable(Gdx.gl.GL_SCISSOR_TEST);
 		Gdx.gl.glClear(Gdx.gl.GL_COLOR_BUFFER_BIT);
 		draw();
-		
-		Gdx.gl.glFlush();
+
+		Gdx.gl.glDisable( Gdx.gl.GL_SCISSOR_TEST );
 		
 		step();
 	}
 	
 	@Override
 	public void pause() {
-		paused = true;
+		PointerEvent.clearPointerEvents();
 		
 		if (scene != null) {
 			scene.onPause();
@@ -157,7 +188,7 @@ public class Game implements ApplicationListener {
 	
 	@Override
 	public void resume() {
-		paused = false;
+		justResumed = true;
 	}
 	
 	public void finish(){
@@ -225,6 +256,8 @@ public class Game implements ApplicationListener {
 		if (scene != null) {
 			scene.destroy();
 		}
+		//clear any leftover vertex buffers
+		Vertexbuffer.clear();
 		scene = requestedScene;
 		if (onChange != null) onChange.beforeCreate();
 		scene.create();
@@ -243,13 +276,24 @@ public class Game implements ApplicationListener {
 		Game.realTime = TimeUtils.millis();
 
 		inputHandler.processAllEvents();
-		
+
+		Music.INSTANCE.update();
+		Sample.INSTANCE.update();
 		scene.update();
 		Camera.updateAll();
 	}
 	
 	public static void reportException( Throwable tr ) {
-		if (instance != null) instance.logException(tr);
+		if (instance != null && Gdx.app != null) {
+			instance.logException(tr);
+		} else {
+			//fallback if error happened in initialization
+			StringWriter sw = new StringWriter();
+			PrintWriter pw = new PrintWriter(sw);
+			tr.printStackTrace(pw);
+			pw.flush();
+			System.err.println(sw.toString());
+		}
 	}
 	
 	protected void logException( Throwable tr ){
@@ -270,7 +314,7 @@ public class Game implements ApplicationListener {
 	}
 	
 	public static void vibrate( int milliseconds ) {
-		Gdx.input.vibrate(milliseconds);
+		platform.vibrate( milliseconds );
 	}
 
 	public interface SceneChangeCallback{

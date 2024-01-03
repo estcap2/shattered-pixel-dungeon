@@ -3,7 +3,7 @@
  * Copyright (C) 2012-2015 Oleg Dolya
  *
  * Shattered Pixel Dungeon
- * Copyright (C) 2014-2019 Evan Debenham
+ * Copyright (C) 2014-2023 Evan Debenham
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -23,15 +23,20 @@ package com.shatteredpixel.shatteredpixeldungeon.windows;
 
 import com.shatteredpixel.shatteredpixeldungeon.Assets;
 import com.shatteredpixel.shatteredpixeldungeon.Chrome;
+import com.shatteredpixel.shatteredpixeldungeon.SPDAction;
 import com.shatteredpixel.shatteredpixeldungeon.scenes.PixelScene;
+import com.shatteredpixel.shatteredpixeldungeon.ui.Button;
 import com.shatteredpixel.shatteredpixeldungeon.ui.RenderedTextBlock;
 import com.shatteredpixel.shatteredpixeldungeon.ui.Window;
+import com.watabou.input.KeyBindings;
+import com.watabou.input.KeyEvent;
 import com.watabou.noosa.Game;
 import com.watabou.noosa.Image;
 import com.watabou.noosa.NinePatch;
+import com.watabou.noosa.PointerArea;
 import com.watabou.noosa.audio.Sample;
-import com.watabou.noosa.ui.Button;
 import com.watabou.utils.RectF;
+import com.watabou.utils.Signal;
 
 import java.util.ArrayList;
 
@@ -39,21 +44,46 @@ public class WndTabbed extends Window {
 
 	protected ArrayList<Tab> tabs = new ArrayList<>();
 	protected Tab selected;
+
+	private Signal.Listener<KeyEvent> tabListener;
 	
 	public WndTabbed() {
 		super( 0, 0, Chrome.get( Chrome.Type.TAB_SET ) );
+
+		KeyEvent.addKeyListener(tabListener = new Signal.Listener<KeyEvent>() {
+			@Override
+			public boolean onSignal(KeyEvent keyEvent) {
+
+				if (!keyEvent.pressed && KeyBindings.getActionForKey(keyEvent) == SPDAction.CYCLE){
+					int idx = tabs.indexOf(selected);
+					idx++;
+					if (idx >= tabs.size()) idx = 0;
+					select(idx);
+
+					return true;
+				}
+
+				return false;
+			}
+		});
 	}
-	
-	protected Tab add( Tab tab ) {
+
+	@Override
+	public void destroy() {
+		super.destroy();
+		KeyEvent.removeKeyListener(tabListener);
+	}
+
+	protected Tab add(Tab tab ) {
 
 		tab.setPos( tabs.size() == 0 ?
 			-chrome.marginLeft() + 1 :
 			tabs.get( tabs.size() - 1 ).right(), height );
-		tab.select( false );
+		tab.select( tab.selected );
 		super.add( tab );
 		
 		tabs.add( tab );
-		
+
 		return tab;
 	}
 	
@@ -109,39 +139,18 @@ public class WndTabbed extends Window {
 	}
 
 	public void layoutTabs(){
-		//subract two as there's extra horizontal space for those nobs on the top.
+		//subtract two as that horizontal space is transparent at the bottom
 		int fullWidth = width+chrome.marginHor()-2;
-		int numTabs = tabs.size();
+		float numTabs = tabs.size();
+		float tabWidth = (fullWidth - (numTabs-1))/numTabs;
 
-		if (numTabs == 0)
-			return;
-		if (numTabs == 1) {
-			tabs.get(0).setSize(fullWidth, tabHeight());
-			return;
+		float pos = -chrome.marginLeft() + 1;
+		for (Tab tab : tabs){
+			tab.setSize(tabWidth, tabHeight());
+			tab.setPos(pos, height);
+			pos = tab.right() + 1;
+			PixelScene.align(tab);
 		}
-
-		int spaces = numTabs-1;
-		int spacing = -1;
-
-		while (spacing == -1) {
-			for (int i = 0; i <= 3; i++){
-				if ((fullWidth - i*(spaces)) % numTabs == 0) {
-					spacing = i;
-					break;
-				}
-			}
-			if (spacing == -1) fullWidth--;
-		}
-
-		int tabWidth = (fullWidth - spacing*(numTabs-1)) / numTabs;
-
-		for (int i = 0; i < tabs.size(); i++){
-			tabs.get(i).setSize(tabWidth, tabHeight());
-			tabs.get(i).setPos( i == 0 ?
-					-chrome.marginLeft() + 1 :
-					tabs.get( i - 1 ).right() + spacing, height );
-		}
-
 	}
 	
 	protected int tabHeight() {
@@ -159,6 +168,10 @@ public class WndTabbed extends Window {
 		protected boolean selected;
 		
 		protected NinePatch bg;
+
+		{
+			hotArea.blockLevel = PointerArea.ALWAYS_BLOCK;
+		}
 		
 		@Override
 		protected void layout() {
@@ -174,6 +187,8 @@ public class WndTabbed extends Window {
 		protected void select( boolean value ) {
 			
 			active = !(selected = value);
+
+			if (!active) killTooltip();
 			
 			if (bg != null) {
 				remove( bg );
@@ -189,7 +204,7 @@ public class WndTabbed extends Window {
 		
 		@Override
 		protected void onClick() {
-			Sample.INSTANCE.play( Assets.SND_CLICK, 0.7f, 0.7f, 1.2f );
+			Sample.INSTANCE.play( Assets.Sounds.CLICK, 0.7f, 0.7f, 1.2f );
 			WndTabbed.this.onClick( this );
 		}
 	}
@@ -233,7 +248,7 @@ public class WndTabbed extends Window {
 	
 	protected class IconTab extends Tab {
 		
-		private Image icon;
+		protected Image icon;
 		private RectF defaultFrame;
 		
 		public IconTab( Image icon ){
@@ -268,6 +283,7 @@ public class WndTabbed extends Window {
 					icon.y = y + CUT;
 				}
 			}
+			PixelScene.align(icon);
 		}
 		
 		@Override

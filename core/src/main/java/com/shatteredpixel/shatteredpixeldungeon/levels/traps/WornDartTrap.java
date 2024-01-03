@@ -3,7 +3,7 @@
  * Copyright (C) 2012-2015 Oleg Dolya
  *
  * Shattered Pixel Dungeon
- * Copyright (C) 2014-2019 Evan Debenham
+ * Copyright (C) 2014-2023 Evan Debenham
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -40,58 +40,67 @@ public class WornDartTrap extends Trap {
 		shape = CROSSHAIR;
 		
 		canBeHidden = false;
+		avoidsHallways = true;
 	}
 
 	@Override
 	public void activate() {
-		Char target = Actor.findChar(pos);
-		
-		//find the closest char that can be aimed at
-		if (target == null){
-			for (Char ch : Actor.chars()){
-				Ballistica bolt = new Ballistica(pos, ch.pos, Ballistica.PROJECTILE);
-				if (bolt.collisionPos == ch.pos &&
-						(target == null || Dungeon.level.trueDistance(pos, ch.pos) < Dungeon.level.trueDistance(pos, target.pos))){
-					target = ch;
+
+		//we handle this inside of a separate actor as the trap may produce a visual effect we need to pause for
+		Actor.add(new Actor() {
+
+			{
+				actPriority = VFX_PRIO;
+			}
+
+			@Override
+			protected boolean act() {
+				Actor.remove(this);
+				Char target = Actor.findChar(pos);
+
+				//find the closest char that can be aimed at
+				if (target == null){
+					float closestDist = Float.MAX_VALUE;
+					for (Char ch : Actor.chars()){
+						if (!ch.isAlive()) continue;
+						float curDist = Dungeon.level.trueDistance(pos, ch.pos);
+						if (ch.invisible > 0) curDist += 1000;
+						Ballistica bolt = new Ballistica(pos, ch.pos, Ballistica.PROJECTILE);
+						if (bolt.collisionPos == ch.pos && curDist < closestDist){
+							target = ch;
+							closestDist = curDist;
+						}
+					}
+				}
+
+				if (target != null) {
+					final Char finalTarget = target;
+					if (Dungeon.level.heroFOV[pos] || Dungeon.level.heroFOV[target.pos]) {
+						((MissileSprite) ShatteredPixelDungeon.scene().recycle(MissileSprite.class)).
+								reset(pos, finalTarget.sprite, new Dart(), new Callback() {
+									@Override
+									public void call() {
+										int dmg = Random.NormalIntRange(4, 8) - finalTarget.drRoll();
+										finalTarget.damage(dmg, WornDartTrap.this);
+										if (finalTarget == Dungeon.hero && !finalTarget.isAlive()){
+											Dungeon.fail( WornDartTrap.this  );
+										}
+										Sample.INSTANCE.play(Assets.Sounds.HIT, 1, 1, Random.Float(0.8f, 1.25f));
+										finalTarget.sprite.bloodBurstA(finalTarget.sprite.center(), dmg);
+										finalTarget.sprite.flash();
+										next();
+									}
+								});
+						return false;
+					} else {
+						finalTarget.damage(Random.NormalIntRange(4, 8) - finalTarget.drRoll(), WornDartTrap.this);
+						return true;
+					}
+				} else {
+					return true;
 				}
 			}
-		}
-		if (target != null) {
-			final Char finalTarget = target;
-			final WornDartTrap trap = this;
-			if (Dungeon.level.heroFOV[pos] || Dungeon.level.heroFOV[target.pos]) {
-				Actor.add(new Actor() {
-					
-					{
-						//it's a visual effect, gets priority no matter what
-						actPriority = VFX_PRIO;
-					}
-					
-					@Override
-					protected boolean act() {
-						final Actor toRemove = this;
-						((MissileSprite) ShatteredPixelDungeon.scene().recycle(MissileSprite.class)).
-							reset(pos, finalTarget.sprite, new Dart(), new Callback() {
-								@Override
-								public void call() {
-								int dmg = Random.NormalIntRange(4, 8) - finalTarget.drRoll();
-								finalTarget.damage(dmg, trap);
-								if (finalTarget == Dungeon.hero && !finalTarget.isAlive()){
-									Dungeon.fail( trap.getClass()  );
-								}
-								Sample.INSTANCE.play(Assets.SND_HIT, 1, 1, Random.Float(0.8f, 1.25f));
-								finalTarget.sprite.bloodBurstA(finalTarget.sprite.center(), dmg);
-								finalTarget.sprite.flash();
-								Actor.remove(toRemove);
-								next();
-								}
-							});
-						return false;
-					}
-				});
-			} else {
-				finalTarget.damage(Random.NormalIntRange(4, 8) - finalTarget.drRoll(), trap);
-			}
-		}
+
+		});
 	}
 }

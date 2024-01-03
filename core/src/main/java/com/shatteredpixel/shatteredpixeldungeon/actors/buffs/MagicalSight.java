@@ -3,7 +3,7 @@
  * Copyright (C) 2012-2015 Oleg Dolya
  *
  * Shattered Pixel Dungeon
- * Copyright (C) 2014-2019 Evan Debenham
+ * Copyright (C) 2014-2023 Evan Debenham
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -22,7 +22,7 @@
 package com.shatteredpixel.shatteredpixeldungeon.actors.buffs;
 
 import com.shatteredpixel.shatteredpixeldungeon.Dungeon;
-import com.shatteredpixel.shatteredpixeldungeon.messages.Messages;
+import com.shatteredpixel.shatteredpixeldungeon.actors.Char;
 import com.shatteredpixel.shatteredpixeldungeon.scenes.GameScene;
 import com.shatteredpixel.shatteredpixeldungeon.ui.BuffIndicator;
 import com.watabou.noosa.Image;
@@ -31,38 +31,44 @@ public class MagicalSight extends FlavourBuff {
 	
 	public static final float DURATION = 50f;
 	
-	public int distance = 8;
+	public static final int DISTANCE = 12;
 	
 	{
 		type = buffType.POSITIVE;
-		announced = true;
 	}
 	
 	@Override
 	public int icon() {
 		return BuffIndicator.MIND_VISION;
 	}
-	
+
 	@Override
 	public void tintIcon(Image icon) {
-		greyIcon(icon, 5f, cooldown());
+		icon.hardlight(1f, 1.67f, 1f);
 	}
-	
+
 	@Override
-	public String toString() {
-		return Messages.get(this, "name");
+	public float iconFadePercent() {
+		return Math.max(0, (DURATION - visualcooldown()) / DURATION);
 	}
-	
+
+	@Override
+	public boolean attachTo(Char target) {
+		if (super.attachTo(target)){
+			Buff.detach(target, Blindness.class);
+			return true;
+		}
+		return false;
+	}
+
 	@Override
 	public void detach() {
 		super.detach();
 		Dungeon.observe();
 		GameScene.updateFog();
 	}
-	
-	@Override
-	public String desc() {
-		return Messages.get(this, "desc", dispTurns());
+
+	{
+		immunities.add(Blindness.class);
 	}
-	
 }

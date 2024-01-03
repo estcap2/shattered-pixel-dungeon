@@ -3,7 +3,7 @@
  * Copyright (C) 2012-2015 Oleg Dolya
  *
  * Shattered Pixel Dungeon
- * Copyright (C) 2014-2019 Evan Debenham
+ * Copyright (C) 2014-2023 Evan Debenham
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -25,8 +25,11 @@ import com.shatteredpixel.shatteredpixeldungeon.Badges;
 import com.shatteredpixel.shatteredpixeldungeon.Dungeon;
 import com.shatteredpixel.shatteredpixeldungeon.Statistics;
 import com.shatteredpixel.shatteredpixeldungeon.actors.Char;
+import com.shatteredpixel.shatteredpixeldungeon.actors.blobs.Electricity;
+import com.shatteredpixel.shatteredpixeldungeon.actors.blobs.Freezing;
+import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.BlobImmunity;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Burning;
-import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Vertigo;
+import com.shatteredpixel.shatteredpixeldungeon.actors.hero.Hero;
 import com.shatteredpixel.shatteredpixeldungeon.items.food.MysteryMeat;
 import com.shatteredpixel.shatteredpixeldungeon.sprites.PiranhaSprite;
 import com.watabou.utils.PathFinder;
@@ -49,8 +52,7 @@ public class Piranha extends Mob {
 		HUNTING = new Hunting();
 		
 		state = SLEEPING;
-		
-		properties.add(Property.BLOB_IMMUNE);
+
 	}
 	
 	public Piranha() {
@@ -64,7 +66,7 @@ public class Piranha extends Mob {
 	protected boolean act() {
 		
 		if (!Dungeon.level.water[pos]) {
-			die( null );
+			dieOnLand();
 			return true;
 		} else {
 			return super.act();
@@ -83,19 +85,25 @@ public class Piranha extends Mob {
 	
 	@Override
 	public int drRoll() {
-		return Random.NormalIntRange(0, Dungeon.depth);
+		return super.drRoll() + Random.NormalIntRange(0, Dungeon.depth);
 	}
-	
+
 	@Override
-	public int defenseSkill( Char enemy ) {
-		enemySeen = state != SLEEPING
-				&& this.enemy != null
-				&& fieldOfView != null
-				&& fieldOfView[this.enemy.pos]
-				&& this.enemy.invisible == 0;
-		return super.defenseSkill( enemy );
+	public boolean surprisedBy(Char enemy, boolean attacking) {
+		if (enemy == Dungeon.hero && (!attacking || ((Hero)enemy).canSurpriseAttack())){
+			if (fieldOfView == null || fieldOfView.length != Dungeon.level.length()){
+				fieldOfView = new boolean[Dungeon.level.length()];
+				Dungeon.level.updateFieldOfView( this, fieldOfView );
+			}
+			return state == SLEEPING || !fieldOfView[enemy.pos] || enemy.invisible > 0;
+		}
+		return super.surprisedBy(enemy, attacking);
 	}
-	
+
+	public void dieOnLand(){
+		die( null );
+	}
+
 	@Override
 	public void die( Object cause ) {
 		super.die( cause );
@@ -142,6 +150,11 @@ public class Piranha extends Mob {
 	}
 	
 	{
+		for (Class c : new BlobImmunity().immunities()){
+			if (c != Electricity.class && c != Freezing.class){
+				immunities.add(c);
+			}
+		}
 		immunities.add( Burning.class );
 	}
 	
@@ -180,6 +193,14 @@ public class Piranha extends Mob {
 			}
 			
 			return super.act(enemyInFOV, justAlerted);
+		}
+	}
+
+	public static Piranha random(){
+		if (Random.Int(50) == 0){
+			return new PhantomPiranha();
+		} else {
+			return new Piranha();
 		}
 	}
 }

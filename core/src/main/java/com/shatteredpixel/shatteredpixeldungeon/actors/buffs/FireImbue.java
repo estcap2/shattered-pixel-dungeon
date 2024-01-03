@@ -3,7 +3,7 @@
  * Copyright (C) 2012-2015 Oleg Dolya
  *
  * Shattered Pixel Dungeon
- * Copyright (C) 2014-2019 Evan Debenham
+ * Copyright (C) 2014-2023 Evan Debenham
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -73,8 +73,6 @@ public class FireImbue extends Buff {
 		left -= TICK;
 		if (left <= 0){
 			detach();
-		} else if (left < 5){
-			BuffIndicator.refreshHero();
 		}
 
 		return true;
@@ -89,17 +87,22 @@ public class FireImbue extends Buff {
 
 	@Override
 	public int icon() {
-		return BuffIndicator.FIRE;
-	}
-	
-	@Override
-	public void tintIcon(Image icon) {
-		FlavourBuff.greyIcon(icon, 5f, left);
+		return BuffIndicator.IMBUE;
 	}
 
 	@Override
-	public String toString() {
-		return Messages.get(this, "name");
+	public void tintIcon(Image icon) {
+		icon.hardlight(2f, 0.75f, 0f);
+	}
+
+	@Override
+	public float iconFadePercent() {
+		return Math.max(0, (DURATION - left) / DURATION);
+	}
+
+	@Override
+	public String iconTextDisplay() {
+		return Integer.toString((int)left);
 	}
 
 	@Override
@@ -109,5 +112,15 @@ public class FireImbue extends Buff {
 
 	{
 		immunities.add( Burning.class );
+	}
+
+	@Override
+	public boolean attachTo(Char target) {
+		if (super.attachTo(target)){
+			Buff.detach(target, Burning.class);
+			return true;
+		} else {
+			return false;
+		}
 	}
 }

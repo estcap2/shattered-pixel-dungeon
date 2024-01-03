@@ -3,7 +3,7 @@
  * Copyright (C) 2012-2015 Oleg Dolya
  *
  * Shattered Pixel Dungeon
- * Copyright (C) 2014-2019 Evan Debenham
+ * Copyright (C) 2014-2023 Evan Debenham
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -34,7 +34,35 @@ public class BurnedRoom extends PatchRoom {
 	public float[] sizeCatProbs() {
 		return new float[]{4, 1, 0};
 	}
-	
+
+	@Override
+	public boolean canMerge(Level l, Point p, int mergeTerrain) {
+		int cell = l.pointToCell(pointInside(p, 1));
+		return l.map[cell] == Terrain.EMPTY;
+	}
+
+	@Override
+	protected float fill() {
+		//past 8x8 each point of width/height decreases fill by 3%
+		// e.g. a 14x14 burned room has a fill of 54%
+		return Math.min( 1f, 1.48f - (width()+height())*0.03f);
+	}
+
+	@Override
+	protected int clustering() {
+		return 2;
+	}
+
+	@Override
+	protected boolean ensurePath() {
+		return false;
+	}
+
+	@Override
+	protected boolean cleanEdges() {
+		return false;
+	}
+
 	@Override
 	public void paint(Level level) {
 		Painter.fill( level, this, Terrain.WALL );
@@ -43,10 +71,7 @@ public class BurnedRoom extends PatchRoom {
 			door.set( Door.Type.REGULAR );
 		}
 		
-		//past 8x8 each point of width/height decreases fill by 3%
-		// e.g. a 14x14 burned room has a fill of 54%
-		float fill = Math.min( 1f, 1.48f - (width()+height())*0.03f);
-		setupPatch(level, fill, 2, false );
+		setupPatch(level);
 		
 		for (int i=top + 1; i < bottom; i++) {
 			for (int j=left + 1; j < right; j++) {
@@ -83,17 +108,17 @@ public class BurnedRoom extends PatchRoom {
 	
 	@Override
 	public boolean canPlaceWater(Point p) {
-		return super.canPlaceWater(p) && !patch[xyToPatchCoords(p.x, p.y)];
+		return !inside(p) || !patch[xyToPatchCoords(p.x, p.y)];
 	}
 
 	@Override
 	public boolean canPlaceGrass(Point p) {
-		return super.canPlaceGrass(p) && !patch[xyToPatchCoords(p.x, p.y)];
+		return !inside(p) || !patch[xyToPatchCoords(p.x, p.y)];
 	}
 
 	@Override
 	public boolean canPlaceTrap(Point p) {
-		return super.canPlaceTrap(p) && !patch[xyToPatchCoords(p.x, p.y)];
+		return !inside(p) || !patch[xyToPatchCoords(p.x, p.y)];
 	}
 	
 }

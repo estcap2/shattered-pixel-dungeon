@@ -3,7 +3,7 @@
  * Copyright (C) 2012-2015 Oleg Dolya
  *
  * Shattered Pixel Dungeon
- * Copyright (C) 2014-2019 Evan Debenham
+ * Copyright (C) 2014-2023 Evan Debenham
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -39,7 +39,7 @@ public class Foliage extends Blob {
 
 		int[] map = Dungeon.level.map;
 		
-		boolean visible = false;
+		boolean seen = false;
 
 		int cell;
 		for (int i = area.left; i < area.right; i++) {
@@ -55,7 +55,7 @@ public class Foliage extends Blob {
 						GameScene.updateMap(cell);
 					}
 
-					visible = visible || Dungeon.level.heroFOV[cell];
+					seen = seen || Dungeon.level.visited[cell];
 
 				} else {
 					off[cell] = 0;
@@ -64,11 +64,14 @@ public class Foliage extends Blob {
 		}
 		
 		Hero hero = Dungeon.hero;
-		if (hero.isAlive() && hero.visibleEnemies() == 0 && cur[hero.pos] > 0) {
-			Buff.affect( hero, Shadows.class ).prolong();
+		if (hero.isAlive() && cur[hero.pos] > 0) {
+			Shadows s = Buff.affect( hero, Shadows.class );
+			if (s != null){
+				s.prolong();
+			}
 		}
 
-		if (visible) {
+		if (seen) {
 			Notes.add( Notes.Landmark.GARDEN );
 		}
 	}

@@ -3,7 +3,7 @@
  * Copyright (C) 2012-2015 Oleg Dolya
  *
  * Shattered Pixel Dungeon
- * Copyright (C) 2014-2019 Evan Debenham
+ * Copyright (C) 2014-2023 Evan Debenham
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -42,7 +42,12 @@ public class IncendiaryDart extends TippedDart {
 		Char enemy = Actor.findChar( cell );
 		if ((enemy == null || enemy == curUser) && Dungeon.level.flamable[cell]) {
 			GameScene.add(Blob.seed(cell, 4, Fire.class));
-			Dungeon.level.drop(new Dart(), cell).sprite.drop();
+			decrementDurability();
+			if (durability > 0){
+				super.onThrow(cell);
+			} else {
+				Dungeon.level.drop(new Dart(), cell).sprite.drop();
+			}
 		} else{
 			super.onThrow(cell);
 		}
@@ -50,7 +55,10 @@ public class IncendiaryDart extends TippedDart {
 	
 	@Override
 	public int proc( Char attacker, Char defender, int damage ) {
-		Buff.affect( defender, Burning.class ).reignite( defender );
+		//when processing charged shot, only burn enemies
+		if (!processingChargedShot || attacker.alignment != defender.alignment) {
+			Buff.affect(defender, Burning.class).reignite(defender);
+		}
 		return super.proc( attacker, defender, damage );
 	}
 	

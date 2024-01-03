@@ -3,7 +3,7 @@
  * Copyright (C) 2012-2015 Oleg Dolya
  *
  * Shattered Pixel Dungeon
- * Copyright (C) 2014-2019 Evan Debenham
+ * Copyright (C) 2014-2023 Evan Debenham
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -23,12 +23,12 @@ package com.shatteredpixel.shatteredpixeldungeon.mechanics;
 
 import com.shatteredpixel.shatteredpixeldungeon.Dungeon;
 import com.shatteredpixel.shatteredpixeldungeon.ShatteredPixelDungeon;
-import com.shatteredpixel.shatteredpixeldungeon.utils.BArray;
+import com.watabou.utils.BArray;
 
 //based on: http://www.roguebasin.com/index.php?title=FOV_using_recursive_shadowcasting
 public final class ShadowCaster {
 
-	public static final int MAX_DISTANCE = 12;
+	public static final int MAX_DISTANCE = 20;
 	
 	//max length of rows as FOV moves out, for each FOV distance
 	//This is used to make the overall FOV circular, instead of square
@@ -41,7 +41,7 @@ public final class ShadowCaster {
 				//testing the middle of a cell, so we use i + 0.5
 				rounding[i][j] = (int)Math.min(
 						j,
-						Math.round( (i + 0.5) * Math.cos( Math.asin( j / (i + 0.5) ))));
+						Math.round( i * Math.cos( Math.asin( j / (i + 0.5) ))));
 			}
 		}
 	}
@@ -80,24 +80,35 @@ public final class ShadowCaster {
 	                               int x, int y, double lSlope, double rSlope,
 	                               int mX, int mY, boolean mXY){
 		
-		//if we have negative space to traverse, just quit.
-		if (rSlope < lSlope) return;
-		
 		boolean inBlocking = false;
 		int start, end;
 		int col;
+
+		int[] roundingAtDist;
+		if (distance == 2){
+			//at a visibility distance of 2 we fill in the corners of vision
+			// as otherwise this vision range disproportionately punishes diagonal movement,
+			// even though removing corners is technically correct
+			roundingAtDist = rounding[distance].clone();
+			roundingAtDist[2] = 2;
+		} else {
+			roundingAtDist = rounding[distance];
+		}
 		
 		//calculations are offset by 0.5 because FOV is coming from the center of the source cell
 		
 		//for each row, starting with the current one
 		for (; row <= distance; row++){
+
+			//if we have negative space to traverse, just quit.
+			if (rSlope < lSlope) return;
 			
 			//we offset by slightly less than 0.5 to account for slopes just touching a cell
 			if (lSlope == 0)    start = 0;
 			else                start = (int)Math.floor((row - 0.5) * lSlope + 0.499);
 			
-			if (rSlope == 1)    end = rounding[distance][row];
-			else                end = Math.min( rounding[distance][row],
+			if (rSlope == 1)    end = roundingAtDist[row];
+			else                end = Math.min( roundingAtDist[row],
 			                                    (int)Math.ceil((row + 0.5) * rSlope - 0.499));
 			
 			//coordinates of source
@@ -109,6 +120,13 @@ public final class ShadowCaster {
 			
 			//for each column in this row, which
 			for (col = start; col <= end; col++){
+
+
+				//handles the error case of the slope value at the end of a cell being 1 farther
+				// along then at the beginning of the cell, and that earlier cell is vision blocking
+				if (col == end && inBlocking && (int)Math.ceil((row - 0.5) * rSlope - 0.499) != end){
+					break;
+				}
 				
 				fov[cell] = true;
 				

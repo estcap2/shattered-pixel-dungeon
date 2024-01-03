@@ -3,7 +3,7 @@
  * Copyright (C) 2012-2015 Oleg Dolya
  *
  * Shattered Pixel Dungeon
- * Copyright (C) 2014-2019 Evan Debenham
+ * Copyright (C) 2014-2023 Evan Debenham
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -21,59 +21,36 @@
 
 package com.shatteredpixel.shatteredpixeldungeon.items.spells;
 
-import com.shatteredpixel.shatteredpixeldungeon.Dungeon;
-import com.shatteredpixel.shatteredpixeldungeon.actors.Actor;
-import com.shatteredpixel.shatteredpixeldungeon.actors.Char;
-import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Buff;
-import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Paralysis;
 import com.shatteredpixel.shatteredpixeldungeon.actors.hero.Hero;
-import com.shatteredpixel.shatteredpixeldungeon.effects.Splash;
 import com.shatteredpixel.shatteredpixeldungeon.items.potions.exotic.PotionOfStormClouds;
-import com.shatteredpixel.shatteredpixeldungeon.levels.Level;
-import com.shatteredpixel.shatteredpixeldungeon.levels.Terrain;
+import com.shatteredpixel.shatteredpixeldungeon.levels.traps.GeyserTrap;
 import com.shatteredpixel.shatteredpixeldungeon.mechanics.Ballistica;
-import com.shatteredpixel.shatteredpixeldungeon.scenes.GameScene;
 import com.shatteredpixel.shatteredpixeldungeon.sprites.ItemSpriteSheet;
-import com.watabou.utils.PathFinder;
-import com.watabou.utils.Random;
 
 public class AquaBlast extends TargetedSpell {
 	
 	{
 		image = ItemSpriteSheet.AQUA_BLAST;
+		usesTargeting = true;
 	}
 	
 	@Override
 	protected void affectTarget(Ballistica bolt, Hero hero) {
 		int cell = bolt.collisionPos;
-		
-		Splash.at(cell, 0x00AAFF, 10);
-		
-		for (int i : PathFinder.NEIGHBOURS9){
-			if (i == 0 || Random.Int(5) != 0){
-				int terr = Dungeon.level.map[cell + i];
-				if (terr == Terrain.EMPTY || terr == Terrain.GRASS ||
-						terr == Terrain.EMBERS || terr == Terrain.EMPTY_SP ||
-						terr == Terrain.HIGH_GRASS || terr == Terrain.FURROWED_GRASS ||
-						terr == Terrain.EMPTY_DECO) {
-					Level.set(cell + i, Terrain.WATER);
-					GameScene.updateMap(cell + i);
-				}
-			}
+
+		GeyserTrap geyser = new GeyserTrap();
+		geyser.pos = cell;
+		geyser.source = this;
+		if (bolt.path.size() > bolt.dist+1) {
+			geyser.centerKnockBackDirection = bolt.path.get(bolt.dist + 1);
 		}
-		
-		Char target = Actor.findChar(cell);
-		
-		if (target != null && target != hero){
-			//just enough to skip their current turn
-			Buff.affect(target, Paralysis.class, 0f);
-		}
+		geyser.activate();
 	}
 	
 	@Override
-	public int price() {
-		//prices of ingredients, divided by output quantity
-		return Math.round(quantity * ((60 + 40) / 12f));
+	public int value() {
+		//prices of ingredients, divided by output quantity, rounds down
+		return (int)((60 + 40) * (quantity/8f));
 	}
 	
 	public static class Recipe extends com.shatteredpixel.shatteredpixeldungeon.items.Recipe.SimpleRecipe {
@@ -82,10 +59,10 @@ public class AquaBlast extends TargetedSpell {
 			inputs =  new Class[]{PotionOfStormClouds.class, ArcaneCatalyst.class};
 			inQuantity = new int[]{1, 1};
 			
-			cost = 4;
+			cost = 2;
 			
 			output = AquaBlast.class;
-			outQuantity = 12;
+			outQuantity = 8;
 		}
 		
 	}

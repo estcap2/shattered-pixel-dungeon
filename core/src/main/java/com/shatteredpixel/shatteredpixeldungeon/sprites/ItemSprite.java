@@ -3,7 +3,7 @@
  * Copyright (C) 2012-2015 Oleg Dolya
  *
  * Shattered Pixel Dungeon
- * Copyright (C) 2014-2019 Evan Debenham
+ * Copyright (C) 2014-2023 Evan Debenham
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -30,11 +30,13 @@ import com.shatteredpixel.shatteredpixeldungeon.items.Heap;
 import com.shatteredpixel.shatteredpixeldungeon.items.Item;
 import com.shatteredpixel.shatteredpixeldungeon.levels.Terrain;
 import com.shatteredpixel.shatteredpixeldungeon.scenes.GameScene;
+import com.shatteredpixel.shatteredpixeldungeon.scenes.PixelScene;
 import com.shatteredpixel.shatteredpixeldungeon.tiles.DungeonTilemap;
 import com.watabou.gltextures.SmartTexture;
 import com.watabou.gltextures.TextureCache;
 import com.watabou.glwrap.Matrix;
 import com.watabou.glwrap.Vertexbuffer;
+import com.watabou.noosa.Camera;
 import com.watabou.noosa.Game;
 import com.watabou.noosa.MovieClip;
 import com.watabou.noosa.NoosaScript;
@@ -42,6 +44,8 @@ import com.watabou.noosa.audio.Sample;
 import com.watabou.noosa.particles.Emitter;
 import com.watabou.utils.PointF;
 import com.watabou.utils.Random;
+
+import java.nio.Buffer;
 
 public class ItemSprite extends MovieClip {
 
@@ -75,12 +79,12 @@ public class ItemSprite extends MovieClip {
 	}
 	
 	public ItemSprite( Heap heap ){
-		super(Assets.ITEMS);
+		super(Assets.Sprites.ITEMS);
 		view( heap );
 	}
 	
 	public ItemSprite( Item item ) {
-		super(Assets.ITEMS);
+		super(Assets.Sprites.ITEMS);
 		view( item );
 	}
 	
@@ -89,13 +93,9 @@ public class ItemSprite extends MovieClip {
 	}
 	
 	public ItemSprite( int image, Glowing glowing ) {
-		super( Assets.ITEMS );
+		super( Assets.Sprites.ITEMS );
 		
 		view(image, glowing);
-	}
-	
-	public void originToCenter() {
-		origin.set(width / 2, height / 2);
 	}
 	
 	public void link() {
@@ -106,6 +106,7 @@ public class ItemSprite extends MovieClip {
 		this.heap = heap;
 		view(heap);
 		renderShadow = true;
+		visible = heap.seen;
 		place(heap.pos);
 	}
 	
@@ -136,8 +137,8 @@ public class ItemSprite extends MovieClip {
 		final int csize = DungeonTilemap.SIZE;
 		
 		return new PointF(
-			cell % Dungeon.level.width() * csize + (csize - width()) * 0.5f,
-			cell / Dungeon.level.width() * csize + (csize - height()) - csize * perspectiveRaise
+				PixelScene.align(Camera.main, ((cell % Dungeon.level.width()) + 0.5f) * csize - width() * 0.5f),
+				PixelScene.align(Camera.main, ((cell / Dungeon.level.width()) + 1.0f) * csize - height() - csize * perspectiveRaise)
 		);
 	}
 	
@@ -166,7 +167,7 @@ public class ItemSprite extends MovieClip {
 		
 		if (heap != null && heap.seen && heap.peek() instanceof Gold) {
 			CellEmitter.center( heap.pos ).burst( Speck.factory( Speck.COIN ), 5 );
-			Sample.INSTANCE.play( Assets.SND_GOLD, 1, 1, Random.Float( 0.9f, 1.1f ) );
+			Sample.INSTANCE.play( Assets.Sounds.GOLD, 1, 1, Random.Float( 0.9f, 1.1f ) );
 		}
 	}
 	
@@ -206,7 +207,6 @@ public class ItemSprite extends MovieClip {
 			case HEAP: case FOR_SALE:
 				return view( heap.peek() );
 			case CHEST:
-			case MIMIC:
 				return view( ItemSpriteSheet.CHEST, null );
 			case LOCKED_CHEST:
 				return view( ItemSpriteSheet.LOCKED_CHEST, null );
@@ -249,7 +249,10 @@ public class ItemSprite extends MovieClip {
 	@Override
 	public void kill() {
 		super.kill();
-		if (emitter != null) emitter.killAndErase();
+		if (emitter != null) {
+			emitter.on = false;
+			emitter.autoKill = true;
+		}
 		emitter = null;
 	}
 
@@ -272,7 +275,7 @@ public class ItemSprite extends MovieClip {
 
 		if (renderShadow) {
 			if (dirty) {
-				verticesBuffer.position(0);
+				((Buffer)verticesBuffer).position(0);
 				verticesBuffer.put(vertices);
 				if (buffer == null)
 					buffer = new Vertexbuffer(verticesBuffer);
@@ -307,6 +310,10 @@ public class ItemSprite extends MovieClip {
 
 		visible = (heap == null || heap.seen);
 
+		if (emitter != null){
+			emitter.visible = visible;
+		}
+
 		if (dropInterval > 0){
 			shadowOffset -= speed.y * Game.elapsed * 0.8f;
 
@@ -318,17 +325,23 @@ public class ItemSprite extends MovieClip {
 				place(heap.pos);
 
 				if (visible) {
-					boolean water = Dungeon.level.water[heap.pos];
 
-					if (water) {
+					if (Dungeon.level.water[heap.pos]) {
 						GameScene.ripple(heap.pos);
-					} else {
-						int cell = Dungeon.level.map[heap.pos];
-						water = (cell == Terrain.WELL || cell == Terrain.ALCHEMY);
 					}
 
-					if (!(heap.peek() instanceof Gold)) {
-						Sample.INSTANCE.play(water ? Assets.SND_WATER : Assets.SND_STEP, 0.8f, 0.8f, 1.2f);
+					if (Dungeon.level.water[heap.pos]) {
+						Sample.INSTANCE.play( Assets.Sounds.WATER, 0.8f, Random.Float( 1f, 1.45f ) );
+					} else if (Dungeon.level.map[heap.pos] == Terrain.EMPTY_SP) {
+						Sample.INSTANCE.play( Assets.Sounds.STURDY, 0.8f, Random.Float( 1.16f, 1.25f ) );
+					} else if (Dungeon.level.map[heap.pos] == Terrain.GRASS
+							|| Dungeon.level.map[heap.pos] == Terrain.EMBERS
+							|| Dungeon.level.map[heap.pos] == Terrain.FURROWED_GRASS){
+						Sample.INSTANCE.play( Assets.Sounds.GRASS, 0.8f, Random.Float( 1.16f, 1.25f ) );
+					} else if (Dungeon.level.map[heap.pos] == Terrain.HIGH_GRASS) {
+						Sample.INSTANCE.play( Assets.Sounds.STEP, 0.8f, Random.Float( 1.16f, 1.25f ) );
+					} else {
+						Sample.INSTANCE.play( Assets.Sounds.STEP, 0.8f, Random.Float( 1.16f, 1.25f ));
 					}
 				}
 			}
@@ -357,7 +370,7 @@ public class ItemSprite extends MovieClip {
 	}
 
 	public static int pick( int index, int x, int y ) {
-		SmartTexture tx = TextureCache.get( Assets.ITEMS );
+		SmartTexture tx = TextureCache.get( Assets.Sprites.ITEMS );
 		int rows = tx.width / SIZE;
 		int row = index / rows;
 		int col = index % rows;

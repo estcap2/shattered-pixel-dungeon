@@ -3,7 +3,7 @@
  * Copyright (C) 2012-2015 Oleg Dolya
  *
  * Shattered Pixel Dungeon
- * Copyright (C) 2014-2019 Evan Debenham
+ * Copyright (C) 2014-2023 Evan Debenham
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -24,9 +24,13 @@ package com.shatteredpixel.shatteredpixeldungeon.actors.mobs;
 import com.shatteredpixel.shatteredpixeldungeon.Dungeon;
 import com.shatteredpixel.shatteredpixeldungeon.actors.Actor;
 import com.shatteredpixel.shatteredpixeldungeon.actors.Char;
+import com.shatteredpixel.shatteredpixeldungeon.actors.blobs.SacrificialFire;
+import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.AllyBuff;
 import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Buff;
-import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.Corruption;
+import com.shatteredpixel.shatteredpixeldungeon.actors.buffs.ChampionEnemy;
+import com.shatteredpixel.shatteredpixeldungeon.actors.hero.abilities.duelist.Challenge;
 import com.shatteredpixel.shatteredpixeldungeon.effects.Pushing;
+import com.shatteredpixel.shatteredpixeldungeon.items.Gold;
 import com.shatteredpixel.shatteredpixeldungeon.levels.features.Chasm;
 import com.shatteredpixel.shatteredpixeldungeon.scenes.GameScene;
 import com.shatteredpixel.shatteredpixeldungeon.sprites.GhoulSprite;
@@ -50,6 +54,9 @@ public class Ghoul extends Mob {
 		SLEEPING = new Sleeping();
 		WANDERING = new Wandering();
 		state = SLEEPING;
+
+		loot = Gold.class;
+		lootChance = 0.2f;
 		
 		properties.add(Property.UNDEAD);
 	}
@@ -66,7 +73,7 @@ public class Ghoul extends Mob {
 
 	@Override
 	public int drRoll() {
-		return Random.NormalIntRange(0, 4);
+		return super.drRoll() + Random.NormalIntRange(0, 4);
 	}
 
 	@Override
@@ -103,7 +110,9 @@ public class Ghoul extends Mob {
 			
 			int[] neighbours = {pos + 1, pos - 1, pos + Dungeon.level.width(), pos - Dungeon.level.width()};
 			for (int n : neighbours) {
-				if (Dungeon.level.passable[n] && Actor.findChar( n ) == null) {
+				if (Dungeon.level.passable[n]
+						&& Actor.findChar( n ) == null
+						&& (!Char.hasProp(this, Property.LARGE) || Dungeon.level.openSpace[n])) {
 					candidates.add( n );
 				}
 			}
@@ -117,13 +126,18 @@ public class Ghoul extends Mob {
 				}
 				
 				child.pos = Random.element( candidates );
-				
+
+				GameScene.add( child );
 				Dungeon.level.occupyCell(child);
 				
-				GameScene.add( child );
 				if (sprite.visible) {
-					Actor.addDelayed( new Pushing( child, pos, child.pos ), -1 );
+					Actor.add( new Pushing( child, pos, child.pos ) );
 				}
+
+				for (Buff b : buffs(ChampionEnemy.class)){
+					Buff.affect( child, b.getClass());
+				}
+
 			}
 			
 		}
@@ -134,16 +148,15 @@ public class Ghoul extends Mob {
 
 	@Override
 	public void die(Object cause) {
-		if (cause != Chasm.class && cause != GhoulLifeLink.class){
+		if (cause != Chasm.class && cause != GhoulLifeLink.class && !Dungeon.level.pit[pos]){
 			Ghoul nearby = GhoulLifeLink.searchForHost(this);
 			if (nearby != null){
 				beingLifeLinked = true;
+				timesDowned++;
 				Actor.remove(this);
 				Dungeon.level.mobs.remove( this );
-				timesDowned++;
 				Buff.append(nearby, GhoulLifeLink.class).set(timesDowned*5, this);
 				((GhoulSprite)sprite).crumple();
-				beingLifeLinked = false;
 				return;
 			}
 		}
@@ -152,11 +165,27 @@ public class Ghoul extends Mob {
 	}
 
 	@Override
+	public boolean isAlive() {
+		return super.isAlive() || beingLifeLinked;
+	}
+
+	@Override
+	public boolean isActive() {
+		return !beingLifeLinked && isAlive();
+	}
+
+	@Override
 	protected synchronized void onRemove() {
 		if (beingLifeLinked) {
 			for (Buff buff : buffs()) {
-				//corruption and king damager are preserved when removed via life link
-				if (!(buff instanceof Corruption) && !(buff instanceof DwarfKing.KingDamager)) {
+				if (buff instanceof SacrificialFire.Marked){
+					//don't remove and postpone so marked stays on
+					Buff.prolong(this, SacrificialFire.Marked.class, timesDowned*5);
+				} else if (buff instanceof AllyBuff
+						|| buff instanceof ChampionEnemy
+						|| buff instanceof DwarfKing.KingDamager) {
+					//don't remove
+				} else {
 					buff.detach();
 				}
 			}
@@ -209,7 +238,10 @@ public class Ghoul extends Mob {
 
 		@Override
 		public boolean act() {
-			ghoul.sprite.visible = Dungeon.level.heroFOV[ghoul.pos];
+			if (target.alignment != ghoul.alignment){
+				detach();
+				return true;
+			}
 
 			if (target.fieldOfView == null){
 				target.fieldOfView = new boolean[Dungeon.level.length()];
@@ -221,20 +253,31 @@ public class Ghoul extends Mob {
 				return true;
 			}
 
-			turnsToRevive--;
+			if (Dungeon.level.pit[ghoul.pos]){
+				super.detach();
+				ghoul.beingLifeLinked = false;
+				ghoul.die(this);
+				return true;
+			}
+
+			//have to delay this manually here are a downed ghouls can't be directly frozen otherwise
+			if (target.buff(Challenge.DuelParticipant.class) == null) {
+				turnsToRevive--;
+			}
 			if (turnsToRevive <= 0){
-				ghoul.HP = Math.round(ghoul.HT/10f);
 				if (Actor.findChar( ghoul.pos ) != null) {
 					ArrayList<Integer> candidates = new ArrayList<>();
 					for (int n : PathFinder.NEIGHBOURS8) {
 						int cell = ghoul.pos + n;
-						if (Dungeon.level.passable[cell] && Actor.findChar( cell ) == null) {
+						if (Dungeon.level.passable[cell]
+								&& Actor.findChar( cell ) == null
+								&& (!Char.hasProp(ghoul, Property.LARGE) || Dungeon.level.openSpace[cell])) {
 							candidates.add( cell );
 						}
 					}
 					if (candidates.size() > 0) {
 						int newPos = Random.element( candidates );
-						Actor.addDelayed( new Pushing( ghoul, ghoul.pos, newPos ), -1 );
+						Actor.add( new Pushing( ghoul, ghoul.pos, newPos ) );
 						ghoul.pos = newPos;
 
 					} else {
@@ -242,8 +285,10 @@ public class Ghoul extends Mob {
 						return true;
 					}
 				}
+				ghoul.HP = Math.round(ghoul.HT/10f);
+				ghoul.beingLifeLinked = false;
 				Actor.add(ghoul);
-				ghoul.spend(-ghoul.cooldown());
+				ghoul.timeToNow();
 				Dungeon.level.mobs.add(ghoul);
 				Dungeon.level.occupyCell( ghoul );
 				ghoul.sprite.idle();
@@ -253,6 +298,12 @@ public class Ghoul extends Mob {
 
 			spend(TICK);
 			return true;
+		}
+
+		public void updateVisibility(){
+			if (ghoul != null && ghoul.sprite != null){
+				ghoul.sprite.visible = Dungeon.level.heroFOV[ghoul.pos];
+			}
 		}
 
 		public void set(int turns, Ghoul ghoul){
@@ -274,8 +325,9 @@ public class Ghoul extends Mob {
 			Ghoul newHost = searchForHost(ghoul);
 			if (newHost != null){
 				attachTo(newHost);
-				spend(-cooldown());
+				timeToNow();
 			} else {
+				ghoul.beingLifeLinked = false;
 				ghoul.die(this);
 			}
 		}
@@ -294,13 +346,17 @@ public class Ghoul extends Mob {
 		public void restoreFromBundle(Bundle bundle) {
 			super.restoreFromBundle(bundle);
 			ghoul = (Ghoul) bundle.get(GHOUL);
+			ghoul.beingLifeLinked = true;
 			turnsToRevive = bundle.getInt(LEFT);
 		}
 
 		public static Ghoul searchForHost(Ghoul dieing){
 
 			for (Char ch : Actor.chars()){
-				if (ch != dieing && ch instanceof Ghoul && ch.alignment == dieing.alignment){
+				//don't count hero ally ghouls or duel frozen ghouls
+				if (ch != dieing && ch instanceof Ghoul
+						&& ch.alignment == dieing.alignment
+						&& ch.buff(Challenge.SpectatorFreeze.class) == null){
 					if (ch.fieldOfView == null){
 						ch.fieldOfView = new boolean[Dungeon.level.length()];
 						Dungeon.level.updateFieldOfView( ch, ch.fieldOfView );
